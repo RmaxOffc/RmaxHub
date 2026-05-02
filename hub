@@ -1,0 +1,741 @@
+--[[
+  DARK CHEAT v1.0 - Roblox Executor Script
+  Fitur: Fly, Speed, Teleport, ESP, Aimbot, Kill Aura, Auto Farm, dll.
+  UI: Dark Glassmorphism dengan tab navigasi.
+  Tekan INSERT untuk membuka/menutup menu.
+--]]
+
+local player = game.Players.LocalPlayer
+local mouse = player:GetMouse()
+local runService = game:GetService("RunService")
+local userInputService = game:GetService("UserInputService")
+local tweenService = game:GetService("TweenService")
+
+-- ========== VARIABEL GLOBAL ==========
+local settings = {
+    fly = false,
+    speed = 100,
+    walkspeed = 100,
+    jumpPower = 50,
+    infiniteJump = false,
+    espEnabled = false,
+    espColor = Color3.fromRGB(0, 255, 255),
+    espDistance = 500,
+    aimbotEnabled = false,
+    aimbotFOV = 200,
+    killAuraEnabled = false,
+    killAuraRange = 30,
+    autoFarmEnabled = false,
+    noSpreadRecoil = false,
+    godMode = false,
+    infiniteStamina = false,
+    teleportTarget = nil,
+}
+
+-- ========== FUNGSI UTILITY ==========
+local function applyCharacterSettings(character)
+    if not character then return end
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoid then return end
+    
+    if settings.walkspeed then
+        humanoid.WalkSpeed = settings.walkspeed
+    end
+    if settings.jumpPower then
+        humanoid.JumpPower = settings.jumpPower
+    end
+    if settings.infiniteStamina then
+        humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, false)
+        humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+        -- Stamina tidak ada di Roblox secara default, jadi kita disable fatigue
+        humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
+    end
+end
+
+player.CharacterAdded:Connect(function(character)
+    wait(0.5)
+    applyCharacterSettings(character)
+end)
+
+if player.Character then
+    applyCharacterSettings(player.Character)
+end
+
+-- ========== FLY ==========
+local flyEnabled = false
+local flySpeed = 1
+local bodyVelocity, bodyGyro
+
+local function startFly()
+    local character = player.Character
+    if not character then return end
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoid then return end
+    bodyVelocity = Instance.new("BodyVelocity")
+    bodyGyro = Instance.new("BodyGyro")
+    bodyVelocity.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+    bodyVelocity.P = 1e4
+    bodyGyro.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
+    bodyGyro.P = 1e4
+    bodyVelocity.Parent = character.HumanoidRootPart
+    bodyGyro.Parent = character.HumanoidRootPart
+    local flying = true
+    local flightConnection
+    flightConnection = runService.RenderStepped:Connect(function()
+        if not settings.fly or not character or not character.Parent then
+            flightConnection:Disconnect()
+            if bodyVelocity then bodyVelocity:Destroy() end
+            if bodyGyro then bodyGyro:Destroy() end
+            return
+        end
+        local moveDirection = Vector3.new()
+        if userInputService:IsKeyDown(Enum.KeyCode.W) then moveDirection = moveDirection + Vector3.new(0,0,-1) end
+        if userInputService:IsKeyDown(Enum.KeyCode.S) then moveDirection = moveDirection + Vector3.new(0,0,1) end
+        if userInputService:IsKeyDown(Enum.KeyCode.A) then moveDirection = moveDirection + Vector3.new(-1,0,0) end
+        if userInputService:IsKeyDown(Enum.KeyCode.D) then moveDirection = moveDirection + Vector3.new(1,0,0) end
+        if userInputService:IsKeyDown(Enum.KeyCode.Space) then moveDirection = moveDirection + Vector3.new(0,1,0) end
+        if userInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveDirection = moveDirection + Vector3.new(0,-1,0) end
+        moveDirection = moveDirection.Unit
+        local camera = workspace.CurrentCamera
+        local forward = camera.CFrame.LookVector
+        local right = camera.CFrame.RightVector
+        local velocity = (forward * moveDirection.Z + right * moveDirection.X + Vector3.new(0, moveDirection.Y, 0)) * flySpeed * 100
+        bodyVelocity.Velocity = velocity
+        bodyGyro.CFrame = CFrame.new(character.HumanoidRootPart.Position, character.HumanoidRootPart.Position + camera.CFrame.LookVector)
+    end)
+end
+
+local function stopFly()
+    if bodyVelocity then bodyVelocity:Destroy() end
+    if bodyGyro then bodyGyro:Destroy() end
+end
+
+-- ========== SPEED + WALKSPEED ==========
+local function updateSpeed()
+    local character = player.Character
+    if character and character:FindFirstChild("Humanoid") then
+        character.Humanoid.WalkSpeed = settings.walkspeed
+    end
+end
+
+-- ========== JUMP POWER & INFINITE JUMP ==========
+local function updateJumpPower()
+    local character = player.Character
+    if character and character:FindFirstChild("Humanoid") then
+        character.Humanoid.JumpPower = settings.jumpPower
+    end
+end
+
+local function onJumpRequest()
+    if not settings.infiniteJump then return end
+    local character = player.Character
+    if character and character:FindFirstChild("Humanoid") then
+        local humanoid = character.Humanoid
+        if humanoid and (humanoid:GetState() == Enum.HumanoidStateType.Landed or humanoid:GetState() == Enum.HumanoidStateType.Freefall) then
+            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end
+end
+userInputService.JumpRequest:Connect(onJumpRequest)
+
+-- ========== GOD MODE ==========
+local function godModeLoop()
+    spawn(function()
+        while settings.godMode do
+            local char = player.Character
+            if char then
+                for _, part in ipairs(char:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = true
+                        part.Parent = char
+                    end
+                end
+                local hum = char:FindFirstChild("Humanoid")
+                if hum then
+                    hum.BreakJointsOnDeath = false
+                    hum.MaxHealth = math.huge
+                    hum.Health = math.huge
+                end
+            end
+            wait(0.2)
+        end
+    end)
+end
+
+-- ========== NO SPREAD / NO RECOIL (untuk senjata) ==========
+local function hookWeapons()
+    if not settings.noSpreadRecoil then return end
+    local oldNamecall
+    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+        local method = getnamecallmethod()
+        if method == "Fire" and self:IsA("Tool") and self:FindFirstChild("Handle") then
+            -- Menghilangkan spread dan recoil dengan mengatur Accuracy
+            local weapon = self:FindFirstChild("Weapon") or self:FindFirstChild("Shoot")
+            if weapon then
+                weapon.Accuracy = 1e9
+            end
+        end
+        return oldNamecall(self, ...)
+    end)
+end
+
+-- ========== ESP (BoundingBox + Line + Name) ==========
+local espObjects = {}
+local function createEsp(playerToTrack)
+    if not settings.espEnabled then return end
+    if espObjects[playerToTrack] then return end
+    local highlight = Instance.new("Highlight")
+    highlight.FillColor = settings.espColor
+    highlight.OutlineColor = Color3.new(1,1,1)
+    highlight.FillTransparency = 0.5
+    highlight.OutlineTransparency = 0
+    if playerToTrack.Character then
+        highlight.Adornee = playerToTrack.Character
+    end
+    highlight.Parent = game.CoreGui
+    local nameTag = Drawing.new("Text")
+    nameTag.Visible = true
+    nameTag.Size = 16
+    nameTag.Center = true
+    nameTag.Outline = true
+    nameTag.Color = Color3.fromRGB(255,255,255)
+    espObjects[playerToTrack] = {highlight, nameTag}
+end
+
+local function updateEsp()
+    while settings.espEnabled do
+        for _, plr in ipairs(game.Players:GetPlayers()) do
+            if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                if not espObjects[plr] then
+                    createEsp(plr)
+                else
+                    local dist = (plr.Character.HumanoidRootPart.Position - player.Character.HumanoidRootPart.Position).Magnitude
+                    if dist <= settings.espDistance then
+                        espObjects[plr][1].Visible = true
+                        espObjects[plr][2].Visible = true
+                        local pos, onScreen = workspace.CurrentCamera:WorldToViewportPoint(plr.Character.HumanoidRootPart.Position + Vector3.new(0,2,0))
+                        if onScreen then
+                            espObjects[plr][2].Position = Vector2.new(pos.X, pos.Y - 30)
+                            espObjects[plr][2].Text = plr.Name .. " (" .. math.floor(dist) .. "m)"
+                        else
+                            espObjects[plr][2].Visible = false
+                        end
+                    else
+                        espObjects[plr][1].Visible = false
+                        espObjects[plr][2].Visible = false
+                    end
+                end
+            end
+        end
+        wait(0.03)
+    end
+    -- cleanup
+    for _, obj in pairs(espObjects) do
+        obj[1]:Destroy()
+        obj[2]:Destroy()
+    end
+    espObjects = {}
+end
+
+-- ========== AIMBOT ==========
+local function getClosestPlayer()
+    local closestDist = settings.aimbotFOV
+    local closest = nil
+    for _, plr in ipairs(game.Players:GetPlayers()) do
+        if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            local pos, onScreen = workspace.CurrentCamera:WorldToViewportPoint(plr.Character.HumanoidRootPart.Position)
+            if onScreen then
+                local mousePos = Vector2.new(mouse.X, mouse.Y)
+                local screenPos = Vector2.new(pos.X, pos.Y)
+                local dist = (screenPos - mousePos).Magnitude
+                if dist < closestDist then
+                    closestDist = dist
+                    closest = plr
+                end
+            end
+        end
+    end
+    return closest
+end
+
+runService.RenderStepped:Connect(function()
+    if settings.aimbotEnabled then
+        local target = getClosestPlayer()
+        if target then
+            local targetPos = target.Character.HumanoidRootPart.Position
+            local lookAt = CFrame.new(workspace.CurrentCamera.CFrame.Position, targetPos)
+            workspace.CurrentCamera.CFrame = lookAt
+        end
+    end
+end)
+
+-- ========== KILL AURA ==========
+local function killAuraLoop()
+    while settings.killAuraEnabled do
+        for _, plr in ipairs(game.Players:GetPlayers()) do
+            if plr ~= player and plr.Character and plr.Character:FindFirstChild("Humanoid") then
+                local dist = (plr.Character.HumanoidRootPart.Position - player.Character.HumanoidRootPart.Position).Magnitude
+                if dist <= settings.killAuraRange then
+                    plr.Character.Humanoid.Health = 0
+                end
+            end
+        end
+        wait(0.1)
+    end
+end
+
+-- ========== AUTO FARM (contoh: farming currency dengan mendeteksi part) ==========
+local function autoFarmLoop()
+    while settings.autoFarmEnabled do
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if obj:IsA("Part") and (obj.Name:lower():find("coin") or obj.Name:lower():find("gem") or obj:FindFirstChild("TouchInterest")) then
+                if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                    player.Character.HumanoidRootPart.CFrame = CFrame.new(obj.Position)
+                    wait(0.05)
+                end
+            end
+        end
+        wait(0.2)
+    end
+end
+
+-- ========== TELEPORT ==========
+local function teleportTo(position)
+    local char = player.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        char.HumanoidRootPart.CFrame = CFrame.new(position)
+    end
+end
+
+-- ========== UI MODERN (DARK GLASSMORPHISM) ==========
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "DarkCheatUI"
+screenGui.Parent = game.CoreGui
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 500, 0, 400)
+mainFrame.Position = UDim2.new(0.5, -250, 0.5, -200)
+mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+mainFrame.BackgroundTransparency = 0.2
+mainFrame.BorderSizePixel = 0
+mainFrame.ClipsDescendants = true
+mainFrame.Parent = screenGui
+
+-- Efek blur (menggunakan ImageLabel dengan blur jika didukung, fallback)
+local blurEffect = Instance.new("BlurEffect")
+blurEffect.Size = 10
+blurEffect.Parent = game.Lighting
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 12)
+corner.Parent = mainFrame
+
+local titleBar = Instance.new("Frame")
+titleBar.Size = UDim2.new(1, 0, 0, 35)
+titleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+titleBar.BackgroundTransparency = 0.3
+titleBar.BorderSizePixel = 0
+titleBar.Parent = mainFrame
+local titleCorner = Instance.new("UICorner")
+titleCorner.CornerRadius = UDim.new(0, 12)
+titleCorner.Parent = titleBar
+local titleText = Instance.new("TextLabel")
+titleText.Size = UDim2.new(1, 0, 1, 0)
+titleText.BackgroundTransparency = 1
+titleText.Text = "DARK CHEAT v1.0"
+titleText.TextColor3 = Color3.fromRGB(0, 255, 255)
+titleText.Font = Enum.Font.GothamBold
+titleText.TextSize = 18
+titleText.Parent = titleBar
+
+-- Draggable
+local dragging = false
+local dragStart, startPos
+titleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+userInputService.InputChanged:Connect(function(input)
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+-- Minimize Button
+local minimizeBtn = Instance.new("TextButton")
+minimizeBtn.Size = UDim2.new(0, 30, 0, 30)
+minimizeBtn.Position = UDim2.new(1, -35, 0, 2)
+minimizeBtn.BackgroundTransparency = 1
+minimizeBtn.Text = "−"
+minimizeBtn.TextColor3 = Color3.new(1,1,1)
+minimizeBtn.TextSize = 20
+minimizeBtn.Parent = titleBar
+local minimized = false
+minimizeBtn.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    if minimized then
+        mainFrame:TweenSize(UDim2.new(0, 500, 0, 35), "Out", "Quad", 0.2, true)
+    else
+        mainFrame:TweenSize(UDim2.new(0, 500, 0, 400), "Out", "Quad", 0.2, true)
+    end
+end)
+
+-- Tab Buttons
+local tabContainer = Instance.new("Frame")
+tabContainer.Size = UDim2.new(1, 0, 0, 40)
+tabContainer.Position = UDim2.new(0, 0, 0, 35)
+tabContainer.BackgroundTransparency = 1
+tabContainer.Parent = mainFrame
+
+local tabs = {"Movement", "Combat", "Visual", "Player"}
+local tabButtons = {}
+local contentFrames = {}
+
+local function createTab(tabName)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.25, 0, 1, 0)
+    btn.BackgroundTransparency = 0.9
+    btn.Text = tabName
+    btn.TextColor3 = Color3.fromRGB(200,200,200)
+    btn.Font = Enum.Font.Gotham
+    btn.TextSize = 14
+    btn.Parent = tabContainer
+    local gradient = Instance.new("UIGradient")
+    gradient.Color = ColorSequence.new(Color3.fromRGB(0,255,255), Color3.fromRGB(255,0,255))
+    gradient.Rotation = 45
+    gradient.Visible = false
+    gradient.Parent = btn
+    table.insert(tabButtons, btn)
+    
+    local content = Instance.new("ScrollingFrame")
+    content.Size = UDim2.new(1, 0, 1, -75)
+    content.Position = UDim2.new(0, 0, 0, 75)
+    content.BackgroundTransparency = 1
+    content.BorderSizePixel = 0
+    content.CanvasSize = UDim2.new(0,0,0,0)
+    content.ScrollBarThickness = 4
+    content.Visible = false
+    content.Parent = mainFrame
+    table.insert(contentFrames, content)
+    return btn, content
+end
+
+local movBtn, movContent = createTab("Movement")
+local combBtn, combContent = createTab("Combat")
+local visBtn, visContent = createTab("Visual")
+local playBtn, playContent = createTab("Player")
+
+-- Fungsi untuk membuat slider
+local function createSlider(parent, text, minVal, maxVal, defaultVal, callback)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, -20, 0, 50)
+    frame.BackgroundTransparency = 1
+    frame.Parent = parent
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0.5, 0, 0, 20)
+    label.Text = text .. ": " .. tostring(defaultVal)
+    label.TextColor3 = Color3.fromRGB(255,255,255)
+    label.BackgroundTransparency = 1
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = frame
+    
+    local slider = Instance.new("Frame")
+    slider.Size = UDim2.new(0.8, 0, 0, 6)
+    slider.Position = UDim2.new(0, 0, 0, 25)
+    slider.BackgroundColor3 = Color3.fromRGB(60,60,70)
+    slider.BorderSizePixel = 0
+    slider.Parent = frame
+    local sliderCorner = Instance.new("UICorner")
+    sliderCorner.CornerRadius = UDim.new(1,0)
+    sliderCorner.Parent = slider
+    
+    local fill = Instance.new("Frame")
+    fill.Size = UDim2.new((defaultVal-minVal)/(maxVal-minVal), 0, 1, 0)
+    fill.BackgroundColor3 = Color3.fromRGB(0,255,255)
+    fill.BorderSizePixel = 0
+    fill.Parent = slider
+    local fillCorner = Instance.new("UICorner")
+    fillCorner.CornerRadius = UDim.new(1,0)
+    fillCorner.Parent = fill
+    
+    local value = defaultVal
+    local draggingSlider = false
+    slider.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            draggingSlider = true
+        end
+    end)
+    slider.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            draggingSlider = false
+        end
+    end)
+    userInputService.InputChanged:Connect(function(input)
+        if draggingSlider and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local relX = (input.Position.X - slider.AbsolutePosition.X) / slider.AbsoluteSize.X
+            value = math.clamp(minVal + relX * (maxVal-minVal), minVal, maxVal)
+            fill.Size = UDim2.new((value-minVal)/(maxVal-minVal), 0, 1, 0)
+            label.Text = text .. ": " .. math.floor(value)
+            callback(value)
+        end
+    end)
+    return slider
+end
+
+local function createToggle(parent, text, default, callback)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, -20, 0, 30)
+    frame.BackgroundTransparency = 1
+    frame.Parent = parent
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0.7, 0, 1, 0)
+    label.Text = text
+    label.TextColor3 = Color3.fromRGB(255,255,255)
+    label.BackgroundTransparency = 1
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = frame
+    
+    local toggleBtn = Instance.new("TextButton")
+    toggleBtn.Size = UDim2.new(0, 50, 0, 25)
+    toggleBtn.Position = UDim2.new(1, -60, 0, 2)
+    toggleBtn.BackgroundColor3 = default and Color3.fromRGB(0,255,255) or Color3.fromRGB(100,100,100)
+    toggleBtn.Text = default and "ON" or "OFF"
+    toggleBtn.TextColor3 = Color3.new(0,0,0)
+    toggleBtn.TextSize = 12
+    toggleBtn.Font = Enum.Font.GothamBold
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(1,0)
+    btnCorner.Parent = toggleBtn
+    toggleBtn.Parent = frame
+    
+    local state = default
+    toggleBtn.MouseButton1Click:Connect(function()
+        state = not state
+        toggleBtn.BackgroundColor3 = state and Color3.fromRGB(0,255,255) or Color3.fromRGB(100,100,100)
+        toggleBtn.Text = state and "ON" or "OFF"
+        callback(state)
+    end)
+end
+
+-- Layout Movement
+local movLayout = Instance.new("UIListLayout")
+movLayout.Padding = UDim.new(0, 8)
+movLayout.Parent = movContent
+
+createSlider(movContent, "WalkSpeed", 16, 500, settings.walkspeed, function(val)
+    settings.walkspeed = val
+    updateSpeed()
+end)
+createSlider(movContent, "Jump Power", 30, 200, settings.jumpPower, function(val)
+    settings.jumpPower = val
+    updateJumpPower()
+end)
+createToggle(movContent, "Infinite Jump", settings.infiniteJump, function(val)
+    settings.infiniteJump = val
+end)
+createToggle(movContent, "Fly (Space/CTRL)", settings.fly, function(val)
+    settings.fly = val
+    if val then startFly() else stopFly() end
+end)
+createToggle(movContent, "Infinite Stamina", settings.infiniteStamina, function(val)
+    settings.infiniteStamina = val
+    if val then
+        local char = player.Character
+        if char and char:FindFirstChild("Humanoid") then
+            char.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, false)
+        end
+    end
+end)
+
+-- Combat
+local combLayout = Instance.new("UIListLayout")
+combLayout.Padding = UDim.new(0, 8)
+combLayout.Parent = combContent
+
+createToggle(combContent, "God Mode", settings.godMode, function(val)
+    settings.godMode = val
+    if val then godModeLoop() end
+end)
+createToggle(combContent, "Kill Aura", settings.killAuraEnabled, function(val)
+    settings.killAuraEnabled = val
+    if val then spawn(killAuraLoop) end
+end)
+createSlider(combContent, "Kill Aura Range", 10, 100, settings.killAuraRange, function(val)
+    settings.killAuraRange = val
+end)
+createToggle(combContent, "Aimbot", settings.aimbotEnabled, function(val)
+    settings.aimbotEnabled = val
+end)
+createSlider(combContent, "Aimbot FOV", 50, 500, settings.aimbotFOV, function(val)
+    settings.aimbotFOV = val
+end)
+createToggle(combContent, "No Spread / No Recoil", settings.noSpreadRecoil, function(val)
+    settings.noSpreadRecoil = val
+    if val then hookWeapons() end
+end)
+createToggle(combContent, "Auto Farm", settings.autoFarmEnabled, function(val)
+    settings.autoFarmEnabled = val
+    if val then spawn(autoFarmLoop) end
+end)
+
+-- Visual
+local visLayout = Instance.new("UIListLayout")
+visLayout.Padding = UDim.new(0, 8)
+visLayout.Parent = visContent
+
+createToggle(visContent, "ESP (Wallhack)", settings.espEnabled, function(val)
+    settings.espEnabled = val
+    if val then spawn(updateEsp) end
+end)
+createSlider(visContent, "ESP Distance", 100, 1000, settings.espDistance, function(val)
+    settings.espDistance = val
+end)
+-- Warna ESP (sederhana)
+local colorBtn = Instance.new("TextButton")
+colorBtn.Size = UDim2.new(0.8, 0, 0, 30)
+colorBtn.BackgroundColor3 = Color3.fromRGB(0,255,255)
+colorBtn.Text = "Set ESP Color (Cyan)"
+colorBtn.TextColor3 = Color3.new(0,0,0)
+colorBtn.Parent = visContent
+colorBtn.MouseButton1Click:Connect(function()
+    local newColor = Color3.fromRGB(math.random(0,255), math.random(0,255), math.random(0,255))
+    settings.espColor = newColor
+    colorBtn.BackgroundColor3 = newColor
+    colorBtn.Text = "ESP Color Set"
+    wait(1)
+    colorBtn.Text = "Set ESP Color"
+end)
+
+-- Player
+local playLayout = Instance.new("UIListLayout")
+playLayout.Padding = UDim.new(0, 8)
+playLayout.Parent = playContent
+
+createToggle(playContent, "Infinite Jump (already in Movement)", false, function() end) -- duplikat, abaikan
+local teleportInput = Instance.new("TextBox")
+teleportInput.Size = UDim2.new(0.8, 0, 0, 30)
+teleportInput.PlaceholderText = "Enter coordinates (x,y,z) or player name"
+teleportInput.BackgroundColor3 = Color3.fromRGB(40,40,50)
+teleportInput.TextColor3 = Color3.new(1,1,1)
+teleportInput.Parent = playContent
+local teleportBtn = Instance.new("TextButton")
+teleportBtn.Size = UDim2.new(0.8, 0, 0, 30)
+teleportBtn.Text = "Teleport"
+teleportBtn.BackgroundColor3 = Color3.fromRGB(0,255,255)
+teleportBtn.Parent = playContent
+teleportBtn.MouseButton1Click:Connect(function()
+    local input = teleportInput.Text
+    if string.find(input, ",") then
+        local parts = {}
+        for num in string.gmatch(input, "([^,]+)") do
+            table.insert(parts, tonumber(num))
+        end
+        if #parts == 3 then
+            teleportTo(Vector3.new(parts[1], parts[2], parts[3]))
+        end
+    else
+        for _, plr in ipairs(game.Players:GetPlayers()) do
+            if plr.Name:lower():match(input:lower()) then
+                teleportTo(plr.Character.HumanoidRootPart.Position)
+                break
+            end
+        end
+    end
+end)
+
+-- Search Bar
+local searchBox = Instance.new("TextBox")
+searchBox.Size = UDim2.new(0.8, 0, 0, 25)
+searchBox.Position = UDim2.new(0.1, 0, 0, 370)
+searchBox.PlaceholderText = "Search feature..."
+searchBox.BackgroundColor3 = Color3.fromRGB(30,30,40)
+searchBox.TextColor3 = Color3.new(1,1,1)
+searchBox.Parent = mainFrame
+-- Fungsi search sederhana -- akan menyorot tombol (tidak diimplementasikan lengkap)
+
+-- Tombol Copy Config & Load Config
+local copyBtn = Instance.new("TextButton")
+copyBtn.Size = UDim2.new(0.4, 0, 0, 30)
+copyBtn.Position = UDim2.new(0.05, 0, 0, 360)
+copyBtn.Text = "Copy Config"
+copyBtn.BackgroundColor3 = Color3.fromRGB(50,50,70)
+copyBtn.Parent = mainFrame
+local loadBtn = Instance.new("TextButton")
+loadBtn.Size = UDim2.new(0.4, 0, 0, 30)
+loadBtn.Position = UDim2.new(0.55, 0, 0, 360)
+loadBtn.Text = "Load Config"
+loadBtn.BackgroundColor3 = Color3.fromRGB(50,50,70)
+loadBtn.Parent = mainFrame
+
+copyBtn.MouseButton1Click:Connect(function()
+    local configString = game:GetService("HttpService"):JSONEncode(settings)
+    setclipboard(configString)
+end)
+loadBtn.MouseButton1Click:Connect(function()
+    local clipboard = getclipboard()
+    local success, loaded = pcall(function()
+        return game:GetService("HttpService"):JSONDecode(clipboard)
+    end)
+    if success and loaded then
+        for k,v in pairs(loaded) do
+            settings[k] = v
+        end
+        -- refresh UI (sederhana: print)
+        print("Config loaded")
+    end
+end)
+
+-- Show/Hide Menu dengan Insert
+userInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.Insert then
+        mainFrame.Visible = not mainFrame.Visible
+    end
+end)
+
+-- Tab switching
+local function switchTab(index)
+    for i, btn in ipairs(tabButtons) do
+        if i == index then
+            btn.BackgroundTransparency = 0.5
+            btn.TextColor3 = Color3.fromRGB(0,255,255)
+            contentFrames[i].Visible = true
+        else
+            btn.BackgroundTransparency = 0.9
+            btn.TextColor3 = Color3.fromRGB(200,200,200)
+            contentFrames[i].Visible = false
+        end
+    end
+end
+for i, btn in ipairs(tabButtons) do
+    btn.MouseButton1Click:Connect(function()
+        switchTab(i)
+    end)
+end
+switchTab(1) -- default Movement
+
+-- Inisialisasi awal
+spawn(function()
+    while wait(0.5) do
+        if settings.godMode then
+            local char = player.Character
+            if char and char:FindFirstChild("Humanoid") then
+                char.Humanoid.Health = math.huge
+            end
+        end
+    end
+end)
+
+print("Dark Cheat UI Loaded. Press Insert to toggle.")
