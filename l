@@ -252,7 +252,7 @@ local cpList = {
     {index=20, pos=Vector3.new(-1102.8, 3268.7, 5502.8)},
     {index=21, pos=Vector3.new(-1045.3, 3556.7, 4002.9)},
     {index=22, pos=Vector3.new(-1650.2, 4492.7, 2626.6)},
-    {index=22, pos=Vector3.new(351.3, 149.3, 109.8),
+    {index=22, pos=Vector3.new(351.3, 149.3, 109.8)},
 }
 local lobbyPos = Vector3.new(351.3, 149.3, 109.8)
 
