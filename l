@@ -1,10 +1,10 @@
--- RMAX HUB - DELTA COMPATIBLE (No Drawing, No task.wait)
+-- RMAX HUB - Delta Compatible + Air Speed (Fast Infinite Jump)
 local player = game.Players.LocalPlayer
 local mouse = player:GetMouse()
 local runService = game:GetService("RunService")
 local uis = game:GetService("UserInputService")
 
--- ========== DETEKSI GAMEPAD (opsional) ==========
+-- ========== DETEKSI GAMEPAD ==========
 local hasGamepad = false
 local function checkGamepad()
     local gamepads = uis:GetGamepads()
@@ -21,6 +21,7 @@ local settings = {
     walkspeed = 100,
     jumppower = 50,
     infinitejump = false,
+    airspeed = 200,        -- kecepatan saat infinite jump aktif di udara
     fly = false,
     godmode = false,
     killaura = false,
@@ -79,7 +80,7 @@ local function startFly()
     end)
 end
 
--- ========== INFINITE JUMP ==========
+-- ========== INFINITE JUMP (dengan fast air speed) ==========
 uis.JumpRequest:Connect(function()
     if settings.infinitejump then
         local char = player.Character
@@ -93,14 +94,29 @@ uis.JumpRequest:Connect(function()
     end
 end)
 
--- ========== UPDATE SPEED & JUMP ==========
+-- ========== UPDATE SPEED & JUMP + AIR SPEED ==========
 local function updateChar()
     local char = player.Character
-    if char and char:FindFirstChild("Humanoid") then
-        char.Humanoid.WalkSpeed = settings.walkspeed
-        char.Humanoid.JumpPower = settings.jumppower
+    if not char then return end
+    local hum = char:FindFirstChild("Humanoid")
+    if not hum then return end
+    
+    -- Set jump power (selalu)
+    hum.JumpPower = settings.jumppower
+    
+    -- Logika kecepatan: jika infinite jump aktif dan karakter di udara -> pakai airspeed, else walkspeed
+    if settings.infinitejump then
+        local state = hum:GetState()
+        if state == Enum.HumanoidStateType.Jumping or state == Enum.HumanoidStateType.Freefall then
+            hum.WalkSpeed = settings.airspeed
+        else
+            hum.WalkSpeed = settings.walkspeed
+        end
+    else
+        hum.WalkSpeed = settings.walkspeed
     end
 end
+
 player.CharacterAdded:Connect(updateChar)
 runService.Heartbeat:Connect(updateChar)
 
@@ -185,7 +201,7 @@ local function startFarm()
     end)
 end
 
--- ========== UI SEDERHANA UNTUK DELTA ==========
+-- ========== UI UNTUK DELTA ==========
 pcall(function() game:GetService("CoreGui"):FindFirstChild("RmaxHubDelta"):Destroy() end)
 pcall(function() player.PlayerGui:FindFirstChild("RmaxHubDelta"):Destroy() end)
 
@@ -197,8 +213,8 @@ screenGui.Name = "RmaxHubDelta"
 screenGui.Parent = guiParent
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 360, 0, 500)
-mainFrame.Position = UDim2.new(0.5, -180, 0.5, -250)
+mainFrame.Size = UDim2.new(0, 380, 0, 560)
+mainFrame.Position = UDim2.new(0.5, -190, 0.5, -280)
 mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 40)
 mainFrame.BackgroundTransparency = 0.1
 mainFrame.BorderSizePixel = 0
@@ -239,7 +255,7 @@ minimizeBtn.TextColor3 = Color3.new(1,1,1)
 minimizeBtn.TextSize = 24
 minimizeBtn.Parent = titleBar
 
--- ScrollingFrame (tetap digunakan tapi sederhana)
+-- ScrollingFrame
 local scroll = Instance.new("ScrollingFrame")
 scroll.Size = UDim2.new(1, -10, 1, -50)
 scroll.Position = UDim2.new(0, 5, 0, 45)
@@ -298,7 +314,7 @@ local function addToggle(icon, text, default, callback)
     return frame
 end
 
--- Helper: Stepper (+/-)
+-- Helper: Stepper (tombol +/-)
 local function addStepper(icon, text, minv, maxv, default, step, callback)
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(1, 0, 0, 52)
@@ -362,18 +378,19 @@ local function addStepper(icon, text, minv, maxv, default, step, callback)
     return frame
 end
 
--- Build UI
+-- ========== MEMBUAT UI ==========
 addToggle("🪶", "Fly (WASD + Gamepad)", settings.fly, function(v) settings.fly = v; if v then startFly() else stopFly() end end)
-addStepper("🏃", "Walk Speed", 16, 500, settings.walkspeed, 10, function(v) settings.walkspeed = v; updateChar() end)
+addStepper("🏃", "Walk Speed (Ground)", 16, 500, settings.walkspeed, 10, function(v) settings.walkspeed = v; updateChar() end)
 addStepper("🦘", "Jump Power", 30, 200, settings.jumppower, 10, function(v) settings.jumppower = v; updateChar() end)
-addToggle("♾️", "Infinite Jump", settings.infinitejump, function(v) settings.infinitejump = v end)
+addToggle("♾️", "Infinite Jump", settings.infinitejump, function(v) settings.infinitejump = v; updateChar() end)
+addStepper("🚀", "Air Speed (when Infinite Jump)", 16, 500, settings.airspeed, 10, function(v) settings.airspeed = v; updateChar() end)
 addToggle("🛡️", "God Mode", settings.godmode, function(v) settings.godmode = v; if v then applyGodMode() end end)
 addToggle("⚔️", "Kill Aura", settings.killaura, function(v) settings.killaura = v end)
 addStepper("📏", "Kill Aura Range", 10, 100, settings.killaurarange, 10, function(v) settings.killaurarange = v end)
 addToggle("🎯", "Aimbot", settings.aimbot, function(v) settings.aimbot = v end)
 addToggle("🤖", "Auto Farm (Coin/Gem)", settings.autofarm, function(v) settings.autofarm = v; if v then startFarm() else stopFarm() end end)
 
--- Update canvas height
+-- Update scroll height
 local function updateScroll()
     local total = 0
     for _, child in ipairs(container:GetChildren()) do
@@ -416,9 +433,9 @@ minimizeBtn.MouseButton1Click:Connect(function()
     minimized = not minimized
     if minimized then
         scroll.Visible = false
-        mainFrame:TweenSize(UDim2.new(0, 360, 0, 40), "Out", "Quad", 0.2, true)
+        mainFrame:TweenSize(UDim2.new(0, 380, 0, 40), "Out", "Quad", 0.2, true)
     else
-        mainFrame:TweenSize(UDim2.new(0, 360, 0, 500), "Out", "Quad", 0.2, true)
+        mainFrame:TweenSize(UDim2.new(0, 380, 0, 560), "Out", "Quad", 0.2, true)
         wait(0.2)
         scroll.Visible = true
         updateScroll()
@@ -433,4 +450,4 @@ uis.InputBegan:Connect(function(input, gp)
     end
 end)
 
-print("✅ RMAX HUB LOADED on Delta - Tekan Insert")
+print("✅ RMAX HUB + AIR SPEED LOADED - Tekan Insert")
