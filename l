@@ -1,22 +1,136 @@
--- RMAX HUB - FINAL FIX (Player List Stabil)
+-- RMAX HUB - UNIVERSAL (Huaa Obstacle + Mount Valthera)
 local player = game.Players.LocalPlayer
 local mouse = player:GetMouse()
 local runService = game:GetService("RunService")
 local uis = game:GetService("UserInputService")
 
--- ========== DETEKSI GAMEPAD ==========
-local hasGamepad = false
-local function checkGamepad()
-    local gamepads = uis:GetGamepads()
-    hasGamepad = #gamepads > 0
-end
-pcall(function()
-    uis.GamepadConnected:Connect(function() hasGamepad = true end)
-    uis.GamepadDisconnected:Connect(function() hasGamepad = false end)
-    checkGamepad()
-end)
+-- ========== DETEKSI MAP ==========
+local placeId = game.PlaceId
+local isHuaa = (placeId == 89054581105142)
+local isValthera = (placeId == 74996495742979)
 
--- ========== SETTINGS ==========
+local currentMap = nil
+if isHuaa then currentMap = "Huaa"
+elseif isValthera then currentMap = "Valthera"
+else currentMap = "Unknown" end
+
+print("Map detected:", currentMap)
+
+-- ========== CP LIST ==========
+local cpList = {}
+if isHuaa then
+    cpList = {
+        {index=1, pos=Vector3.new(-139.9, 139.3, 153.6)},
+        {index=2, pos=Vector3.new(-545.1, 185.2, 451.0)},
+        {index=3, pos=Vector3.new(-436.8, 271.5, 963.3)},
+        {index=4, pos=Vector3.new(-301.8, 401.7, 1668.5)},
+        {index=5, pos=Vector3.new(-173.0, 488.7, 2474.4)},
+        {index=6, pos=Vector3.new(5.2, 772.7, 3027.6)},
+        {index=7, pos=Vector3.new(152.7, 808.7, 3973.8)},
+        {index=8, pos=Vector3.new(-918.7, 864.7, 3905.1)},
+        {index=9, pos=Vector3.new(-843.5, 1253.3, 3007.2)},
+        {index=10, pos=Vector3.new(-802.5, 1496.7, 2414.7)},
+        {index=11, pos=Vector3.new(-128.6, 1736.7, 2134.8)},
+        {index=12, pos=Vector3.new(643.8, 1852.7, 2120.4)},
+        {index=13, pos=Vector3.new(1110.2, 2036.7, 2295.6)},
+        {index=14, pos=Vector3.new(950.3, 2100.7, 2936.0)},
+        {index=15, pos=Vector3.new(147.9, 2240.7, 3549.3)},
+        {index=16, pos=Vector3.new(30.6, 2173.4, 4458.1)},
+        {index=17, pos=Vector3.new(-477.6, 2584.7, 5043.7)},
+        {index=18, pos=Vector3.new(-495.9, 2840.7, 5797.7)},
+        {index=19, pos=Vector3.new(-1044.9, 3016.7, 6255.0)},
+        {index=20, pos=Vector3.new(-1102.8, 3268.7, 5502.8)},
+        {index=21, pos=Vector3.new(-1045.3, 3556.7, 4002.9)},
+        {index=22, pos=Vector3.new(-1650.2, 4492.7, 2626.6)},
+        {index=23, pos=Vector3.new(351.3, 149.3, 109.8)}, -- lobby
+    }
+elseif isValthera then
+    -- Urutan berdasarkan jam (dari awal ke summit)
+    cpList = {
+        {index=1, pos=Vector3.new(591.0, 29.3, 167.3)},
+        {index=2, pos=Vector3.new(-108.9, 100.4, 191.2)},
+        {index=3, pos=Vector3.new(-923.9, 96.4, 208.7)},
+        {index=4, pos=Vector3.new(-1602.7, 99.4, 92.0)},
+        {index=5, pos=Vector3.new(-1590.0, 189.4, -438.2)},
+        {index=6, pos=Vector3.new(-1568.6, 192.4, -1042.8)},
+        {index=7, pos=Vector3.new(-1634.1, 284.4, -1646.4)},
+        {index=8, pos=Vector3.new(-2417.3, 291.4, -1648.3)},
+        {index=9, pos=Vector3.new(-2986.7, 405.4, -1649.9)},
+        {index=10, pos=Vector3.new(-3770.5, 408.4, -1652.9)},
+        {index=11, pos=Vector3.new(-4756.6, 411.4, -1664.8)},
+        {index=12, pos=Vector3.new(-7113.1, 414.4, -1713.5)},
+        {index=13, pos=Vector3.new(-9318.6, 586.9, -1676.8)},
+        {index=14, pos=Vector3.new(-10006.2, 590.4, -1702.7)},
+        {index=15, pos=Vector3.new(-11195.8, 593.4, -2124.7)},
+        {index=16, pos=Vector3.new(-11181.4, 596.4, -3468.8)},
+        {index=17, pos=Vector3.new(-11186.9, 724.4, -4221.9)},
+        {index=18, pos=Vector3.new(-11185.1, 727.4, -5107.6)},
+        {index=19, pos=Vector3.new(-11150.0, 728.4, -6982.9)},
+        {index=20, pos=Vector3.new(-11095.6, 731.1, -8506.5)},
+        {index=21, pos=Vector3.new(-9917.7, 13653.4, -9738.3)}, -- summit
+    }
+end
+
+local lobbyPos = isHuaa and Vector3.new(351.3, 149.3, 109.8) or (isValthera and cpList[1].pos or Vector3.new(0,0,0))
+
+local currentCpIndex = 1
+local autoRunning = false
+local autoThread = nil
+
+local function teleportToPosition(pos)
+    local char = player.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        char.HumanoidRootPart.CFrame = CFrame.new(pos.X, pos.Y, pos.Z)
+    end
+end
+
+local function teleportToCp(index)
+    local cp = cpList[index]
+    if cp then
+        teleportToPosition(cp.pos)
+        currentCpIndex = index
+    end
+end
+
+local function goToLobby()
+    teleportToPosition(lobbyPos)
+end
+
+local function startAutoCp(delaySec)
+    if autoRunning then return end
+    autoRunning = true
+    autoThread = coroutine.create(function()
+        while autoRunning do
+            for i = 1, #cpList do
+                if not autoRunning then break end
+                teleportToCp(i)
+                if i < #cpList then
+                    local start = tick()
+                    while tick() - start < delaySec and autoRunning do
+                        wait(0.1)
+                    end
+                else
+                    if autoRunning then
+                        local start = tick()
+                        while tick() - start < delaySec and autoRunning do
+                            wait(0.1)
+                        end
+                    end
+                end
+            end
+        end
+    end)
+    coroutine.resume(autoThread)
+end
+
+local function stopAutoCp()
+    autoRunning = false
+    if autoThread then
+        autoThread = nil
+    end
+end
+
+-- ========== SETTINGS (Sama seperti sebelumnya) ==========
 local settings = {
     walkspeed = 100,
     jumppower = 50,
@@ -206,13 +320,6 @@ local function startFarm()
 end
 
 -- ========== TELEPORT FUNCTIONS ==========
-local function teleportToPosition(pos)
-    local char = player.Character
-    if char and char:FindFirstChild("HumanoidRootPart") then
-        char.HumanoidRootPart.CFrame = CFrame.new(pos.X, pos.Y, pos.Z)
-    end
-end
-
 local function teleportToPlayer(targetPlayer)
     if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
         local pos = targetPlayer.Character.HumanoidRootPart.Position
@@ -227,82 +334,7 @@ local function bringPlayer(targetPlayer)
     end
 end
 
--- ========== FITUR AUTO CP (HUAA OBSTACLE) ==========
-local isHuaaMap = (game.PlaceId == 89054581105142) or (pcall(function() return game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name:find("HUAA OBSTACLE") end) and true or false)
-
-local cpList = {
-    {index=1, pos=Vector3.new(-139.9, 139.3, 153.6)},
-    {index=2, pos=Vector3.new(-545.1, 185.2, 451.0)},
-    {index=3, pos=Vector3.new(-436.8, 271.5, 963.3)},
-    {index=4, pos=Vector3.new(-301.8, 401.7, 1668.5)},
-    {index=5, pos=Vector3.new(-173.0, 488.7, 2474.4)},
-    {index=6, pos=Vector3.new(5.2, 772.7, 3027.6)},
-    {index=7, pos=Vector3.new(152.7, 808.7, 3973.8)},
-    {index=8, pos=Vector3.new(-918.7, 864.7, 3905.1)},
-    {index=9, pos=Vector3.new(-843.5, 1253.3, 3007.2)},
-    {index=10, pos=Vector3.new(-802.5, 1496.7, 2414.7)},
-    {index=11, pos=Vector3.new(-128.6, 1736.7, 2134.8)},
-    {index=12, pos=Vector3.new(643.8, 1852.7, 2120.4)},
-    {index=13, pos=Vector3.new(1110.2, 2036.7, 2295.6)},
-    {index=14, pos=Vector3.new(950.3, 2100.7, 2936.0)},
-    {index=15, pos=Vector3.new(147.9, 2240.7, 3549.3)},
-    {index=16, pos=Vector3.new(30.6, 2173.4, 4458.1)},
-    {index=17, pos=Vector3.new(-477.6, 2584.7, 5043.7)},
-    {index=18, pos=Vector3.new(-495.9, 2840.7, 5797.7)},
-    {index=19, pos=Vector3.new(-1044.9, 3016.7, 6255.0)},
-    {index=20, pos=Vector3.new(-1102.8, 3268.7, 5502.8)},
-    {index=21, pos=Vector3.new(-1045.3, 3556.7, 4002.9)},
-    {index=22, pos=Vector3.new(-1650.2, 4492.7, 2626.6)},
-    {index=23, pos=Vector3.new(351.3, 149.3, 109.8)},
-}
-
-local currentCpIndex = 1
-local autoRunning = false
-local autoThread = nil
-
-local function teleportToCp(index)
-    local cp = cpList[index]
-    if cp then
-        teleportToPosition(cp.pos)
-        currentCpIndex = index
-    end
-end
-
-local function startAutoCp(delaySec)
-    if autoRunning then return end
-    autoRunning = true
-    autoThread = coroutine.create(function()
-        while autoRunning do
-            for i = 1, #cpList do
-                if not autoRunning then break end
-                teleportToCp(i)
-                if i < #cpList then
-                    local start = tick()
-                    while tick() - start < delaySec and autoRunning do
-                        wait(0.1)
-                    end
-                else
-                    if autoRunning then
-                        local start = tick()
-                        while tick() - start < delaySec and autoRunning do
-                            wait(0.1)
-                        end
-                    end
-                end
-            end
-        end
-    end)
-    coroutine.resume(autoThread)
-end
-
-local function stopAutoCp()
-    autoRunning = false
-    if autoThread then
-        autoThread = nil
-    end
-end
-
--- ========== UI DENGAN FOLDER SYSTEM (FIX PLAYER LIST) ==========
+-- ========== UI ==========
 pcall(function() game:GetService("CoreGui"):FindFirstChild("RmaxHubDelta"):Destroy() end)
 pcall(function() player.PlayerGui:FindFirstChild("RmaxHubDelta"):Destroy() end)
 
@@ -386,7 +418,7 @@ local function updateMainScroll()
     scroll.CanvasSize = UDim2.new(0, 0, 0, totalHeight + 20)
 end
 
--- Helper: Create collapsible category
+-- Helper: createCategory
 local function createCategory(icon, title, defaultOpen)
     local categoryFrame = Instance.new("Frame")
     categoryFrame.Size = UDim2.new(1, 0, 0, 0)
@@ -451,7 +483,7 @@ local function createCategory(icon, title, defaultOpen)
     }
 end
 
--- Helper: Toggle
+-- Helper UI elements
 local function addToggle(parent, icon, text, default, callback)
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(1, -10, 0, 38)
@@ -491,7 +523,6 @@ local function addToggle(parent, icon, text, default, callback)
     return frame
 end
 
--- Helper: Stepper
 local function addStepper(parent, icon, text, minv, maxv, default, step, callback)
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(1, -10, 0, 48)
@@ -509,510 +540,4 @@ local function addStepper(parent, icon, text, minv, maxv, default, step, callbac
     label.Parent = frame
     
     local valLabel = Instance.new("TextLabel")
-    valLabel.Size = UDim2.new(0.2, 0, 1, 0)
-    valLabel.Position = UDim2.new(0.5, 0, 0, 0)
-    valLabel.Text = tostring(default)
-    valLabel.TextColor3 = Color3.fromRGB(0,255,255)
-    valLabel.BackgroundTransparency = 1
-    valLabel.Font = Enum.Font.GothamBold
-    valLabel.TextSize = 15
-    valLabel.Parent = frame
-    
-    local dec = Instance.new("TextButton")
-    dec.Size = UDim2.new(0, 34, 0, 30)
-    dec.Position = UDim2.new(0.75, 0, 0, 9)
-    dec.Text = "-"
-    dec.TextColor3 = Color3.new(1,1,1)
-    dec.BackgroundColor3 = Color3.fromRGB(60,60,80)
-    dec.Font = Enum.Font.GothamBold
-    dec.TextSize = 18
-    local decCorner = Instance.new("UICorner")
-    decCorner.CornerRadius = UDim.new(0, 6)
-    decCorner.Parent = dec
-    dec.Parent = frame
-    
-    local inc = Instance.new("TextButton")
-    inc.Size = UDim2.new(0, 34, 0, 30)
-    inc.Position = UDim2.new(0.85, 0, 0, 9)
-    inc.Text = "+"
-    inc.TextColor3 = Color3.new(1,1,1)
-    inc.BackgroundColor3 = Color3.fromRGB(60,60,80)
-    inc.Font = Enum.Font.GothamBold
-    inc.TextSize = 18
-    local incCorner = Instance.new("UICorner")
-    incCorner.CornerRadius = UDim.new(0, 6)
-    incCorner.Parent = inc
-    inc.Parent = frame
-    
-    local val = default
-    local function update(newVal)
-        val = math.clamp(newVal, minv, maxv)
-        valLabel.Text = tostring(math.floor(val))
-        callback(val)
-    end
-    dec.MouseButton1Click:Connect(function() update(val - step) end)
-    inc.MouseButton1Click:Connect(function() update(val + step) end)
-    return frame
-end
-
-local function addButton(parent, icon, text, callback)
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, -10, 0, 36)
-    frame.BackgroundTransparency = 1
-    frame.Parent = parent
-    
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 0, 30)
-    btn.Text = icon .. " " .. text
-    btn.BackgroundColor3 = Color3.fromRGB(55, 55, 75)
-    btn.TextColor3 = Color3.new(1,1,1)
-    btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 13
-    local btnCorner = Instance.new("UICorner")
-    btnCorner.CornerRadius = UDim.new(0, 6)
-    btnCorner.Parent = btn
-    btn.Parent = frame
-    btn.MouseButton1Click:Connect(callback)
-    return frame
-end
-
--- ========== MEMBUAT KATEGORI ==========
-local movementCat = createCategory("🦶", "MOVEMENT", true)
-local combatCat = createCategory("⚔️", "COMBAT", false)
-local utilityCat = createCategory("🔧", "UTILITY", false)
-local teleportCat = createCategory("📍", "TELEPORT & SAVES", false)
-local playerCat = createCategory("👥", "PLAYERS", false)
-
--- Movement Category
-addToggle(movementCat.content, "🪶", "Fly (WASD + Gamepad)", settings.fly, function(v) settings.fly = v; if v then startFly() else stopFly() end end)
-addStepper(movementCat.content, "🏃", "Walk Speed", 16, 500, settings.walkspeed, 10, function(v) settings.walkspeed = v; updateChar() end)
-addStepper(movementCat.content, "🦘", "Jump Power", 30, 200, settings.jumppower, 10, function(v) settings.jumppower = v; updateChar() end)
-addToggle(movementCat.content, "♾️", "Infinite Jump", settings.infinitejump, function(v) settings.infinitejump = v; updateChar() end)
-addStepper(movementCat.content, "🚀", "Air Speed (when Infinite Jump)", 16, 500, settings.airspeed, 10, function(v) settings.airspeed = v; updateChar() end)
-
--- Combat Category
-addToggle(combatCat.content, "🛡️", "God Mode", settings.godmode, function(v) settings.godmode = v; if v then applyGodMode() end end)
-addToggle(combatCat.content, "⚔️", "Kill Aura", settings.killaura, function(v) settings.killaura = v end)
-addStepper(combatCat.content, "📏", "Kill Aura Range", 10, 100, settings.killaurarange, 10, function(v) settings.killaurarange = v end)
-addToggle(combatCat.content, "🎯", "Aimbot", settings.aimbot, function(v) settings.aimbot = v end)
-
--- Utility Category
-addToggle(utilityCat.content, "🤖", "Auto Farm (Coin/Gem)", settings.autofarm, function(v) settings.autofarm = v; if v then startFarm() else stopFarm() end end)
-
--- Teleport & Saves Category
-local posFrame = Instance.new("Frame")
-posFrame.Size = UDim2.new(1, -10, 0, 55)
-posFrame.BackgroundTransparency = 1
-posFrame.Parent = teleportCat.content
-
-local coordText = Instance.new("TextLabel")
-coordText.Size = UDim2.new(1, 0, 0, 25)
-coordText.Text = "📍 Current: X:0 Y:0 Z:0"
-coordText.TextColor3 = Color3.new(1,1,1)
-coordText.BackgroundTransparency = 1
-coordText.Font = Enum.Font.Gotham
-coordText.TextSize = 12
-coordText.Parent = posFrame
-
-local copyBtn = Instance.new("TextButton")
-copyBtn.Size = UDim2.new(1, 0, 0, 25)
-copyBtn.Position = UDim2.new(0, 0, 0, 28)
-copyBtn.Text = "📋 Copy Position"
-copyBtn.BackgroundColor3 = Color3.fromRGB(60,60,80)
-copyBtn.TextColor3 = Color3.new(1,1,1)
-copyBtn.Font = Enum.Font.GothamBold
-copyBtn.TextSize = 12
-local copyCorner = Instance.new("UICorner")
-copyCorner.CornerRadius = UDim.new(0, 6)
-copyCorner.Parent = copyBtn
-copyBtn.Parent = posFrame
-
-spawn(function()
-    while true do
-        wait(0.1)
-        local char = player.Character
-        if char and char:FindFirstChild("HumanoidRootPart") then
-            local pos = char.HumanoidRootPart.Position
-            coordText.Text = string.format("📍 Current: X:%.1f Y:%.1f Z:%.1f", pos.X, pos.Y, pos.Z)
-        end
-    end
-end)
-
-copyBtn.MouseButton1Click:Connect(function()
-    local char = player.Character
-    if char and char:FindFirstChild("HumanoidRootPart") then
-        local pos = char.HumanoidRootPart.Position
-        local str = string.format("%.1f, %.1f, %.1f", pos.X, pos.Y, pos.Z)
-        pcall(function() setclipboard(str) end)
-        copyBtn.Text = "✓ Copied!"
-        wait(1)
-        copyBtn.Text = "📋 Copy Position"
-    end
-end)
-
--- Save slots
-for i = 1, 5 do
-    local slotFrame = Instance.new("Frame")
-    slotFrame.Size = UDim2.new(1, -10, 0, 32)
-    slotFrame.BackgroundTransparency = 1
-    slotFrame.Parent = teleportCat.content
-    
-    local slotLabel = Instance.new("TextLabel")
-    slotLabel.Size = UDim2.new(0.2, 0, 1, 0)
-    slotLabel.Text = "Slot " .. i
-    slotLabel.TextColor3 = Color3.fromRGB(200,200,200)
-    slotLabel.BackgroundTransparency = 1
-    slotLabel.Font = Enum.Font.Gotham
-    slotLabel.TextSize = 12
-    slotLabel.Parent = slotFrame
-    
-    local saveBtn = Instance.new("TextButton")
-    saveBtn.Size = UDim2.new(0, 55, 0, 24)
-    saveBtn.Position = UDim2.new(0.25, 0, 0, 4)
-    saveBtn.Text = "💾 Save"
-    saveBtn.BackgroundColor3 = Color3.fromRGB(60,100,60)
-    saveBtn.TextColor3 = Color3.new(1,1,1)
-    saveBtn.Font = Enum.Font.GothamBold
-    saveBtn.TextSize = 11
-    local saveCorner = Instance.new("UICorner")
-    saveCorner.CornerRadius = UDim.new(0, 4)
-    saveCorner.Parent = saveBtn
-    saveBtn.Parent = slotFrame
-    
-    local tpBtn = Instance.new("TextButton")
-    tpBtn.Size = UDim2.new(0, 55, 0, 24)
-    tpBtn.Position = UDim2.new(0.55, 0, 0, 4)
-    tpBtn.Text = "✨ TP"
-    tpBtn.BackgroundColor3 = Color3.fromRGB(60,60,100)
-    tpBtn.TextColor3 = Color3.new(1,1,1)
-    tpBtn.Font = Enum.Font.GothamBold
-    tpBtn.TextSize = 11
-    local tpCorner = Instance.new("UICorner")
-    tpCorner.CornerRadius = UDim.new(0, 4)
-    tpCorner.Parent = tpBtn
-    tpBtn.Parent = slotFrame
-    
-    local statusLabel = Instance.new("TextLabel")
-    statusLabel.Size = UDim2.new(0.2, 0, 1, 0)
-    statusLabel.Position = UDim2.new(0.78, 0, 0, 0)
-    statusLabel.Text = "Empty"
-    statusLabel.TextColor3 = Color3.fromRGB(150,150,150)
-    statusLabel.BackgroundTransparency = 1
-    statusLabel.Font = Enum.Font.Gotham
-    statusLabel.TextSize = 10
-    statusLabel.Parent = slotFrame
-    
-    saveBtn.MouseButton1Click:Connect(function()
-        local char = player.Character
-        if char and char:FindFirstChild("HumanoidRootPart") then
-            local pos = char.HumanoidRootPart.Position
-            saveCoord(i, pos)
-            statusLabel.Text = string.format("%.0f,%.0f,%.0f", pos.X, pos.Y, pos.Z)
-            statusLabel.TextColor3 = Color3.fromRGB(0,255,0)
-        end
-    end)
-    
-    tpBtn.MouseButton1Click:Connect(function()
-        local coord = getCoord(i)
-        if coord then
-            teleportToPosition(Vector3.new(coord.X, coord.Y, coord.Z))
-        end
-    end)
-end-- ========== PLAYER LIST CATEGORY (FIX) ==========
-local playerContainerScroll = Instance.new("ScrollingFrame")
-playerContainerScroll.Size = UDim2.new(1, -10, 0, 130)
-playerContainerScroll.BackgroundTransparency = 1
-playerContainerScroll.BorderSizePixel = 0
-playerContainerScroll.ScrollBarThickness = 4
-playerContainerScroll.Parent = playerCat.content
-
-local playerListContainer = Instance.new("Frame")
-playerListContainer.Size = UDim2.new(1, 0, 0, 0)
-playerListContainer.BackgroundTransparency = 1
-playerListContainer.Parent = playerContainerScroll
-
-local playerListLayout = Instance.new("UIListLayout")
-playerListLayout.Padding = UDim.new(0, 4)
-playerListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-playerListLayout.Parent = playerListContainer
-
-local function updatePlayerList()
-    -- Hapus semua child kecuali layout
-    for _, child in ipairs(playerListContainer:GetChildren()) do
-        if child:IsA("Frame") then
-            child:Destroy()
-        end
-    end
-    
-    local players = game.Players:GetPlayers()
-    for _, plr in ipairs(players) do
-        if plr ~= player then
-            local row = Instance.new("Frame")
-            row.Size = UDim2.new(1, 0, 0, 32)
-            row.BackgroundTransparency = 1
-            row.Parent = playerListContainer
-            
-            local nameLabel = Instance.new("TextLabel")
-            nameLabel.Size = UDim2.new(0.45, 0, 1, 0)
-            nameLabel.Text = plr.Name
-            nameLabel.TextColor3 = Color3.new(1,1,1)
-            nameLabel.BackgroundTransparency = 1
-            nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-            nameLabel.Font = Enum.Font.Gotham
-            nameLabel.TextSize = 12
-            nameLabel.Parent = row
-            
-            local tpBtn = Instance.new("TextButton")
-            tpBtn.Size = UDim2.new(0, 65, 0, 26)
-            tpBtn.Position = UDim2.new(0.5, 0, 0, 3)
-            tpBtn.Text = "🚀 TP"
-            tpBtn.BackgroundColor3 = Color3.fromRGB(60,80,120)
-            tpBtn.TextColor3 = Color3.new(1,1,1)
-            tpBtn.Font = Enum.Font.GothamBold
-            tpBtn.TextSize = 11
-            local tpCorner = Instance.new("UICorner")
-            tpCorner.CornerRadius = UDim.new(0, 4)
-            tpCorner.Parent = tpBtn
-            tpBtn.Parent = row
-            
-            local bringBtn = Instance.new("TextButton")
-            bringBtn.Size = UDim2.new(0, 65, 0, 26)
-            bringBtn.Position = UDim2.new(0.75, 0, 0, 3)
-            bringBtn.Text = "📦 Bring"
-            bringBtn.BackgroundColor3 = Color3.fromRGB(120,60,60)
-            bringBtn.TextColor3 = Color3.new(1,1,1)
-            bringBtn.Font = Enum.Font.GothamBold
-            bringBtn.TextSize = 11
-            local bringCorner = Instance.new("UICorner")
-            bringCorner.CornerRadius = UDim.new(0, 4)
-            bringCorner.Parent = bringBtn
-            bringBtn.Parent = row
-            
-            tpBtn.MouseButton1Click:Connect(function()
-                teleportToPlayer(plr)
-            end)
-            bringBtn.MouseButton1Click:Connect(function()
-                bringPlayer(plr)
-            end)
-        end
-    end
-    
-    -- Update tinggi container
-    local totalHeight = 0
-    for _, child in ipairs(playerListContainer:GetChildren()) do
-        if child:IsA("Frame") then
-            totalHeight = totalHeight + child.Size.Y.Offset + playerListLayout.Padding.Offset
-        end
-    end
-    playerListContainer.Size = UDim2.new(1, 0, 0, totalHeight)
-    playerContainerScroll.CanvasSize = UDim2.new(0, 0, 0, totalHeight + 10)
-    
-    -- Update tinggi kategori PLAYERS
-    playerCat.updateHeight()
-end
-
--- Jalankan update player list setiap detik
-spawn(function()
-    updatePlayerList()
-    while true do
-        wait(1)
-        updatePlayerList()
-    end
-end)
-
--- ========== AUTO CP CATEGORY (HANYA UNTUK HUAA) ==========
-if isHuaaMap then
-    local cpCat = createCategory("🏁", "AUTO CP (HUAA OBSTACLE)", true)
-    
-    addButton(cpCat.content, "🏠", "TP to Lobby (CP23)", function()
-        teleportToCp(23)
-    end)
-    
-    addButton(cpCat.content, "⏩", "Next CP (Manual)", function()
-        local nextIdx = currentCpIndex % #cpList + 1
-        teleportToCp(nextIdx)
-    end)
-    
-    -- Auto Loop buttons
-    local autoFrame = Instance.new("Frame")
-    autoFrame.Size = UDim2.new(1, -10, 0, 36)
-    autoFrame.BackgroundTransparency = 1
-    autoFrame.Parent = cpCat.content
-    
-    local autoBtn = Instance.new("TextButton")
-    autoBtn.Size = UDim2.new(0.48, 0, 0, 30)
-    autoBtn.Text = "▶ Auto Loop"
-    autoBtn.BackgroundColor3 = Color3.fromRGB(60,100,60)
-    autoBtn.TextColor3 = Color3.new(1,1,1)
-    autoBtn.Font = Enum.Font.GothamBold
-    autoBtn.TextSize = 12
-    local autoCorner = Instance.new("UICorner")
-    autoCorner.CornerRadius = UDim.new(0, 6)
-    autoCorner.Parent = autoBtn
-    autoBtn.Parent = autoFrame
-    
-    local stopBtn = Instance.new("TextButton")
-    stopBtn.Size = UDim2.new(0.48, 0, 0, 30)
-    stopBtn.Position = UDim2.new(0.52, 0, 0, 0)
-    stopBtn.Text = "⏹ Stop"
-    stopBtn.BackgroundColor3 = Color3.fromRGB(120,60,60)
-    stopBtn.TextColor3 = Color3.new(1,1,1)
-    stopBtn.Font = Enum.Font.GothamBold
-    stopBtn.TextSize = 12
-    local stopCorner = Instance.new("UICorner")
-    stopCorner.CornerRadius = UDim.new(0, 6)
-    stopCorner.Parent = stopBtn
-    stopBtn.Visible = false
-    stopBtn.Parent = autoFrame
-    
-    autoBtn.MouseButton1Click:Connect(function()
-        if autoRunning then return end
-        autoBtn.Visible = false
-        stopBtn.Visible = true
-        startAutoCp(2)
-    end)
-    
-    stopBtn.MouseButton1Click:Connect(function()
-        stopAutoCp()
-        autoBtn.Visible = true
-        stopBtn.Visible = false
-    end)
-    
-    -- Daftar CP
-    local cpListFrame = Instance.new("Frame")
-    cpListFrame.Size = UDim2.new(1, -10, 0, 140)
-    cpListFrame.BackgroundTransparency = 1
-    cpListFrame.Parent = cpCat.content
-    
-    local cpScroll = Instance.new("ScrollingFrame")
-    cpScroll.Size = UDim2.new(1, 0, 1, 0)
-    cpScroll.BackgroundTransparency = 1
-    cpScroll.BorderSizePixel = 0
-    cpScroll.ScrollBarThickness = 4
-    cpScroll.Parent = cpListFrame
-    
-    local cpContainer = Instance.new("Frame")
-    cpContainer.Size = UDim2.new(1, 0, 0, 0)
-    cpContainer.BackgroundTransparency = 1
-    cpContainer.Parent = cpScroll
-    
-    local cpLayout = Instance.new("UIListLayout")
-    cpLayout.Padding = UDim.new(0, 3)
-    cpLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    cpLayout.Parent = cpContainer
-    
-    for _, cp in ipairs(cpList) do
-        local row = Instance.new("Frame")
-        row.Size = UDim2.new(1, 0, 0, 28)
-        row.BackgroundTransparency = 1
-        row.Parent = cpContainer
-        
-        local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(0.25, 0, 1, 0)
-        label.Text = "CP " .. cp.index .. (cp.index == 23 and " (Lobby)" or "")
-        label.TextColor3 = cp.index == 23 and Color3.fromRGB(255,200,0) or Color3.new(1,1,1)
-        label.BackgroundTransparency = 1
-        label.Font = Enum.Font.Gotham
-        label.TextSize = 11
-        label.Parent = row
-        
-        local tpCpBtn = Instance.new("TextButton")
-        tpCpBtn.Size = UDim2.new(0, 70, 0, 22)
-        tpCpBtn.Position = UDim2.new(0.35, 0, 0, 3)
-        tpCpBtn.Text = "📍 TP"
-        tpCpBtn.BackgroundColor3 = Color3.fromRGB(60,80,120)
-        tpCpBtn.TextColor3 = Color3.new(1,1,1)
-        tpCpBtn.Font = Enum.Font.GothamBold
-        tpCpBtn.TextSize = 11
-        local tpCorner = Instance.new("UICorner")
-        tpCorner.CornerRadius = UDim.new(0, 4)
-        tpCorner.Parent = tpCpBtn
-        tpCpBtn.Parent = row
-        
-        local coordLabel = Instance.new("TextLabel")
-        coordLabel.Size = UDim2.new(0.4, 0, 1, 0)
-        coordLabel.Position = UDim2.new(0.6, 0, 0, 0)
-        coordLabel.Text = string.format("%.0f,%.0f,%.0f", cp.pos.X, cp.pos.Y, cp.pos.Z)
-        coordLabel.TextColor3 = Color3.fromRGB(150,150,150)
-        coordLabel.BackgroundTransparency = 1
-        coordLabel.Font = Enum.Font.Gotham
-        coordLabel.TextSize = 9
-        coordLabel.Parent = row
-        
-        tpCpBtn.MouseButton1Click:Connect(function()
-            teleportToCp(cp.index)
-        end)
-    end
-    
-    local function updateCpScroll()
-        local total = 0
-        for _, child in ipairs(cpContainer:GetChildren()) do
-            if child:IsA("Frame") then
-                total = total + child.Size.Y.Offset + cpLayout.Padding.Offset
-            end
-        end
-        cpContainer.Size = UDim2.new(1, 0, 0, total)
-        cpScroll.CanvasSize = UDim2.new(0, 0, 0, total + 10)
-        cpListFrame.Size = UDim2.new(1, -10, 0, math.min(160, total + 20))
-        cpCat.updateHeight()
-    end
-    cpLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateCpScroll)
-    wait(0.1)
-    updateCpScroll()
-end
-
--- Update semua kategori setelah UI selesai
-wait(0.2)
-movementCat.updateHeight()
-combatCat.updateHeight()
-utilityCat.updateHeight()
-teleportCat.updateHeight()
-playerCat.updateHeight()
-updateMainScroll()
-
--- Draggable
-local dragStart, dragStartPos
-titleBar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragStart = input.Position
-        dragStartPos = mainFrame.Position
-        local moveConn, endConn
-        moveConn = uis.InputChanged:Connect(function(inp)
-            if inp.UserInputType == Enum.UserInputType.MouseMovement then
-                local delta = inp.Position - dragStart
-                mainFrame.Position = UDim2.new(dragStartPos.X.Scale, dragStartPos.X.Offset + delta.X, dragStartPos.Y.Scale, dragStartPos.Y.Offset + delta.Y)
-            end
-        end)
-        endConn = uis.InputEnded:Connect(function(inp)
-            if inp.UserInputType == Enum.UserInputType.MouseButton1 then
-                moveConn:Disconnect()
-                endConn:Disconnect()
-            end
-        end)
-    end
-end)
-
--- Minimize
-local minimized = false
-minimizeBtn.MouseButton1Click:Connect(function()
-    minimized = not minimized
-    if minimized then
-        scroll.Visible = false
-        mainFrame:TweenSize(UDim2.new(0, 450, 0, 40), "Out", "Quad", 0.2, true)
-    else
-        mainFrame:TweenSize(UDim2.new(0, 450, 0, 600), "Out", "Quad", 0.2, true)
-        wait(0.2)
-        scroll.Visible = true
-        updateMainScroll()
-    end
-end)
-
--- Show/hide Insert
-uis.InputBegan:Connect(function(input, gp)
-    if gp then return end
-    if input.KeyCode == Enum.KeyCode.Insert then
-        mainFrame.Visible = not mainFrame.Visible
-    end
-end)
-
-print("✅ RMAX HUB FINAL - PLAYER LIST STABIL - Insert toggle")
+    valLabel.Size = UDim2
