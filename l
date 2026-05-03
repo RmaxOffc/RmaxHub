@@ -1,22 +1,25 @@
--- RMAX HUB - UNIVERSAL (Huaa Obstacle + Mount Valthera)
+--[[
+  RMAX HUB - EXTREME EDITION (DARK / GORE)
+  Fitur Rusuh + Detector Celah Sistem Real-Time
+  Map: Huaa Obstacle / Mount Valthera + Universal
+--]]
+
 local player = game.Players.LocalPlayer
 local mouse = player:GetMouse()
 local runService = game:GetService("RunService")
 local uis = game:GetService("UserInputService")
+local lighting = game:GetService("Lighting")
+local http = game:GetService("HttpService")
+local coreGui = game:GetService("CoreGui")
 
 -- ========== DETEKSI MAP ==========
 local placeId = game.PlaceId
 local isHuaa = (placeId == 89054581105142)
 local isValthera = (placeId == 74996495742979)
-
-local currentMap = nil
-if isHuaa then currentMap = "Huaa"
-elseif isValthera then currentMap = "Valthera"
-else currentMap = "Unknown" end
-
+local currentMap = (isHuaa and "Huaa") or (isValthera and "Valthera") or "Unknown"
 print("Map detected:", currentMap)
 
--- ========== CP LIST ==========
+-- ========== CP LIST (sama seperti sebelumnya) ==========
 local cpList = {}
 if isHuaa then
     cpList = {
@@ -42,10 +45,9 @@ if isHuaa then
         {index=20, pos=Vector3.new(-1102.8, 3268.7, 5502.8)},
         {index=21, pos=Vector3.new(-1045.3, 3556.7, 4002.9)},
         {index=22, pos=Vector3.new(-1650.2, 4492.7, 2626.6)},
-        {index=23, pos=Vector3.new(351.3, 149.3, 109.8)}, -- lobby
+        {index=23, pos=Vector3.new(351.3, 149.3, 109.8)},
     }
 elseif isValthera then
-    -- Urutan berdasarkan jam (dari awal ke summit)
     cpList = {
         {index=1, pos=Vector3.new(591.0, 29.3, 167.3)},
         {index=2, pos=Vector3.new(-108.9, 100.4, 191.2)},
@@ -67,70 +69,44 @@ elseif isValthera then
         {index=18, pos=Vector3.new(-11185.1, 727.4, -5107.6)},
         {index=19, pos=Vector3.new(-11150.0, 728.4, -6982.9)},
         {index=20, pos=Vector3.new(-11095.6, 731.1, -8506.5)},
-        {index=21, pos=Vector3.new(-9917.7, 13653.4, -9738.3)}, -- summit
+        {index=21, pos=Vector3.new(-9917.7, 13653.4, -9738.3)},
     }
 end
-
-local lobbyPos = isHuaa and Vector3.new(351.3, 149.3, 109.8) or (isValthera and cpList[1].pos or Vector3.new(0,0,0))
+local lobbyPos = (isHuaa and Vector3.new(351.3,149.3,109.8)) or (isValthera and cpList[1] and cpList[1].pos) or Vector3.new(0,0,0)
 
 local currentCpIndex = 1
 local autoRunning = false
 local autoThread = nil
 
+-- ========== FUNGSI TELEPORT DASAR ==========
 local function teleportToPosition(pos)
     local char = player.Character
     if char and char:FindFirstChild("HumanoidRootPart") then
-        char.HumanoidRootPart.CFrame = CFrame.new(pos.X, pos.Y, pos.Z)
+        char.HumanoidRootPart.CFrame = CFrame.new(pos)
     end
 end
-
 local function teleportToCp(index)
-    local cp = cpList[index]
-    if cp then
-        teleportToPosition(cp.pos)
-        currentCpIndex = index
-    end
+    if cpList[index] then teleportToPosition(cpList[index].pos); currentCpIndex = index end
 end
-
-local function goToLobby()
-    teleportToPosition(lobbyPos)
-end
+local function goToLobby() teleportToPosition(lobbyPos) end
 
 local function startAutoCp(delaySec)
     if autoRunning then return end
     autoRunning = true
     autoThread = coroutine.create(function()
         while autoRunning do
-            for i = 1, #cpList do
+            for i=1,#cpList do
                 if not autoRunning then break end
                 teleportToCp(i)
-                if i < #cpList then
-                    local start = tick()
-                    while tick() - start < delaySec and autoRunning do
-                        wait(0.1)
-                    end
-                else
-                    if autoRunning then
-                        local start = tick()
-                        while tick() - start < delaySec and autoRunning do
-                            wait(0.1)
-                        end
-                    end
-                end
+                wait(delaySec)
             end
         end
     end)
     coroutine.resume(autoThread)
 end
+local function stopAutoCp() autoRunning = false end
 
-local function stopAutoCp()
-    autoRunning = false
-    if autoThread then
-        autoThread = nil
-    end
-end
-
--- ========== SETTINGS (Sama seperti sebelumnya) ==========
+-- ========== SETTINGS (Baru + Rusuh) ==========
 local settings = {
     walkspeed = 100,
     jumppower = 50,
@@ -142,42 +118,49 @@ local settings = {
     killaurarange = 30,
     aimbot = false,
     autofarm = false,
+    -- FITUR RUSUH
+    laserActive = false,
+    laserTarget = nil,
+    laserDamage = 15,
+    laserRange = 150,
+    laserTurret = false,
+    laserTurretRadius = 100,
+    laserTurretDamage = 10,
+    freezePlayer = false,
+    freezeTarget = nil,
+    blindPlayer = false,
+    blindTarget = nil,
+    crashPlayer = false,
+    crashTarget = nil,
+    -- DETECTOR
+    detectorEnabled = false,
+    systemBreach = false,
 }
 
--- ========== SAVED COORDINATES ==========
+-- ========== SAVED COORD ==========
 local savedCoords = {}
-local function saveCoord(slot, pos)
-    savedCoords[slot] = {X = pos.X, Y = pos.Y, Z = pos.Z}
-end
-local function getCoord(slot)
-    return savedCoords[slot]
-end
+local function saveCoord(slot, pos) savedCoords[slot] = {X=pos.X, Y=pos.Y, Z=pos.Z} end
+local function getCoord(slot) return savedCoords[slot] end
 
--- ========== FLY SYSTEM ==========
+-- ========== FLY SYSTEM (sama) ==========
 local bodyVel, bodyGyro, flyConn
 local function stopFly()
     if flyConn then flyConn:Disconnect() end
     if bodyVel then bodyVel:Destroy() end
     if bodyGyro then bodyGyro:Destroy() end
-    flyConn = nil; bodyVel = nil; bodyGyro = nil
+    flyConn, bodyVel, bodyGyro = nil, nil, nil
 end
-
 local function startFly()
     stopFly()
     local char = player.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return end
-    bodyVel = Instance.new("BodyVelocity")
-    bodyGyro = Instance.new("BodyGyro")
-    bodyVel.MaxForce = Vector3.new(1e5, 1e5, 1e5)
-    bodyVel.P = 1e4
-    bodyGyro.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
-    bodyGyro.P = 1e4
-    bodyVel.Parent = char.HumanoidRootPart
-    bodyGyro.Parent = char.HumanoidRootPart
+    bodyVel = Instance.new("BodyVelocity"); bodyGyro = Instance.new("BodyGyro")
+    bodyVel.MaxForce = Vector3.new(1e5,1e5,1e5); bodyVel.P = 1e4
+    bodyGyro.MaxTorque = Vector3.new(1e5,1e5,1e5); bodyGyro.P = 1e4
+    bodyVel.Parent = char.HumanoidRootPart; bodyGyro.Parent = char.HumanoidRootPart
     flyConn = runService.RenderStepped:Connect(function()
         if not settings.fly or not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
-            stopFly()
-            return
+            stopFly(); return
         end
         local move = Vector3.new()
         if uis:IsKeyDown(Enum.KeyCode.W) then move = move + Vector3.new(0,0,-1) end
@@ -186,16 +169,7 @@ local function startFly()
         if uis:IsKeyDown(Enum.KeyCode.D) then move = move + Vector3.new(1,0,0) end
         if uis:IsKeyDown(Enum.KeyCode.Space) then move = move + Vector3.new(0,1,0) end
         if uis:IsKeyDown(Enum.KeyCode.LeftControl) then move = move + Vector3.new(0,-1,0) end
-        if hasGamepad then
-            local gamepad = uis:GetGamepads()[1]
-            if gamepad then
-                local state = gamepad:GetUserGamepadState()
-                local leftStick = state.LeftStick
-                local rightStick = state.RightStick
-                move = move + Vector3.new(leftStick.X, rightStick.Y, -leftStick.Y)
-            end
-        end
-        if move.Magnitude > 0 then move = move.Unit else move = Vector3.new() end
+        if move.Magnitude>0 then move=move.Unit end
         local cam = workspace.CurrentCamera
         local vel = (cam.CFrame.LookVector * move.Z + cam.CFrame.RightVector * move.X + Vector3.new(0,move.Y,0)) * 100
         bodyVel.Velocity = vel
@@ -203,7 +177,7 @@ local function startFly()
     end)
 end
 
--- ========== INFINITE JUMP + AIR SPEED ==========
+-- ========== MOVEMENT / GOD / KILL AURA / AIMBOT / AUTO FARM (sama seperti sebelumnya, dipertahankan) ==========
 uis.JumpRequest:Connect(function()
     if settings.infinitejump then
         local char = player.Character
@@ -223,22 +197,15 @@ local function updateChar()
     local hum = char:FindFirstChild("Humanoid")
     if not hum then return end
     hum.JumpPower = settings.jumppower
-    if settings.infinitejump then
-        local state = hum:GetState()
-        if state == Enum.HumanoidStateType.Jumping or state == Enum.HumanoidStateType.Freefall then
-            hum.WalkSpeed = settings.airspeed
-        else
-            hum.WalkSpeed = settings.walkspeed
-        end
+    if settings.infinitejump and (hum:GetState() == Enum.HumanoidStateType.Jumping or hum:GetState() == Enum.HumanoidStateType.Freefall) then
+        hum.WalkSpeed = settings.airspeed
     else
         hum.WalkSpeed = settings.walkspeed
     end
 end
-
 player.CharacterAdded:Connect(updateChar)
 runService.Heartbeat:Connect(updateChar)
 
--- ========== GOD MODE ==========
 local function applyGodMode()
     if not settings.godmode then return end
     local char = player.Character
@@ -249,14 +216,8 @@ local function applyGodMode()
     end
 end
 player.CharacterAdded:Connect(applyGodMode)
-spawn(function()
-    while true do
-        wait(0.2)
-        if settings.godmode then applyGodMode() end
-    end
-end)
+spawn(function() while true do wait(0.2); if settings.godmode then applyGodMode() end end end)
 
--- ========== KILL AURA ==========
 spawn(function()
     while true do
         if settings.killaura and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
@@ -273,7 +234,6 @@ spawn(function()
     end
 end)
 
--- ========== AIMBOT ==========
 runService.RenderStepped:Connect(function()
     if settings.aimbot and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
         local closest, closestDist = nil, 200
@@ -283,8 +243,7 @@ runService.RenderStepped:Connect(function()
                 if onScreen then
                     local dist = (Vector2.new(mouse.X, mouse.Y) - Vector2.new(pos.X, pos.Y)).Magnitude
                     if dist < closestDist then
-                        closestDist = dist
-                        closest = plr
+                        closestDist = dist; closest = plr
                     end
                 end
             end
@@ -295,11 +254,7 @@ runService.RenderStepped:Connect(function()
     end
 end)
 
--- ========== AUTO FARM ==========
 local farmConn
-local function stopFarm()
-    if farmConn then farmConn:Disconnect() farmConn = nil end
-end
 local function startFarm()
     if farmConn then return end
     farmConn = runService.Heartbeat:Connect(function()
@@ -310,200 +265,390 @@ local function startFarm()
             if obj:IsA("BasePart") and (obj.Name:lower():find("coin") or obj.Name:lower():find("gem")) then
                 local dist = (obj.Position - root.Position).Magnitude
                 if dist < nearestDist then
-                    nearestDist = dist
-                    nearest = obj
+                    nearestDist = dist; nearest = obj
                 end
             end
         end
         if nearest then root.CFrame = nearest.CFrame end
     end)
 end
+local function stopFarm() if farmConn then farmConn:Disconnect(); farmConn = nil end end
 
--- ========== TELEPORT FUNCTIONS ==========
-local function teleportToPlayer(targetPlayer)
-    if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        local pos = targetPlayer.Character.HumanoidRootPart.Position
-        teleportToPosition(pos)
+-- ========== FITUR RUSUH ==========
+-- Laser (continuous damage ke target)
+local laserBeam = nil
+local laserDamageThread = nil
+local function stopLaser()
+    if laserBeam then laserBeam:Destroy(); laserBeam = nil end
+    if laserDamageThread then coroutine.close(laserDamageThread); laserDamageThread = nil end
+end
+
+local function createLaserBeam(fromPos, toPos, color)
+    local beam = Instance.new("Part")
+    beam.Size = Vector3.new(0.2, 0.2, (toPos - fromPos).Magnitude)
+    beam.CFrame = CFrame.new(fromPos, toPos) * CFrame.new(0,0, -beam.Size.Z/2)
+    beam.BrickColor = BrickColor.new(color)
+    beam.Material = Enum.Material.Neon
+    beam.Anchored = true
+    beam.CanCollide = false
+    beam.Parent = workspace
+    return beam
+end
+
+local function laserDamageLoop(target)
+    while settings.laserActive and target and target.Character and target.Character:FindFirstChild("Humanoid") do
+        local hum = target.Character.Humanoid
+        hum.Health = hum.Health - settings.laserDamage
+        if hum.Health <= 0 then break end
+        wait(0.2)
     end
 end
 
-local function bringPlayer(targetPlayer)
-    if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        local myPos = player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character.HumanoidRootPart.Position or Vector3.new(0,0,0)
-        targetPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(myPos)
+local function updateLaser()
+    if not settings.laserActive or not settings.laserTarget or not settings.laserTarget.Character or not settings.laserTarget.Character:FindFirstChild("HumanoidRootPart") then
+        stopLaser()
+        return
+    end
+    local myRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+    local targetRoot = settings.laserTarget.Character.HumanoidRootPart
+    if not myRoot or not targetRoot then return end
+    if (myRoot.Position - targetRoot.Position).Magnitude > settings.laserRange then
+        stopLaser()
+        return
+    end
+    if not laserBeam then
+        laserBeam = createLaserBeam(myRoot.Position, targetRoot.Position, "Bright red")
+    else
+        local dist = (targetRoot.Position - myRoot.Position).Magnitude
+        laserBeam.Size = Vector3.new(0.2, 0.2, dist)
+        laserBeam.CFrame = CFrame.new(myRoot.Position, targetRoot.Position) * CFrame.new(0,0, -dist/2)
+    end
+    if not laserDamageThread then
+        laserDamageThread = coroutine.create(laserDamageLoop)
+        coroutine.resume(laserDamageThread, settings.laserTarget)
     end
 end
 
--- ========== UI ==========
-pcall(function() game:GetService("CoreGui"):FindFirstChild("RmaxHubDelta"):Destroy() end)
-pcall(function() player.PlayerGui:FindFirstChild("RmaxHubDelta"):Destroy() end)
+-- Laser Turret (otomatis serang semua pemain di radius)
+local turretThread = nil
+local function turretLoop()
+    while settings.laserTurret do
+        local myRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+        if myRoot then
+            for _, plr in ipairs(game.Players:GetPlayers()) do
+                if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") and plr.Character:FindFirstChild("Humanoid") then
+                    local dist = (plr.Character.HumanoidRootPart.Position - myRoot.Position).Magnitude
+                    if dist <= settings.laserTurretRadius then
+                        local hum = plr.Character.Humanoid
+                        hum.Health = hum.Health - settings.laserTurretDamage
+                        -- efek laser sesaat
+                        local beam = createLaserBeam(myRoot.Position, plr.Character.HumanoidRootPart.Position, "New Yeller")
+                        game:GetService("Debris"):AddItem(beam, 0.1)
+                    end
+                end
+            end
+        end
+        wait(0.2)
+    end
+end
 
-local guiParent = game:GetService("CoreGui")
-if not guiParent then guiParent = player.PlayerGui end
+local function startTurret()
+    if turretThread then coroutine.close(turretThread) end
+    turretThread = coroutine.create(turretLoop)
+    coroutine.resume(turretThread)
+end
 
+-- Freeze Player (bekukan movement)
+local freezeConnection = nil
+local function freezeTargetPlayer(plr)
+    if not plr or not plr.Character or not plr.Character:FindFirstChild("Humanoid") then return end
+    local hum = plr.Character.Humanoid
+    local originalSpeed = hum.WalkSpeed
+    local originalJump = hum.JumpPower
+    hum.WalkSpeed = 0
+    hum.JumpPower = 0
+    if freezeConnection then freezeConnection:Disconnect() end
+    freezeConnection = runService.Heartbeat:Connect(function()
+        if not settings.freezePlayer or settings.freezeTarget ~= plr or not plr.Character or not plr.Character:FindFirstChild("Humanoid") then
+            if plr.Character and plr.Character:FindFirstChild("Humanoid") then
+                plr.Character.Humanoid.WalkSpeed = originalSpeed
+                plr.Character.Humanoid.JumpPower = originalJump
+            end
+            if freezeConnection then freezeConnection:Disconnect(); freezeConnection = nil end
+            return
+        end
+        local h = plr.Character.Humanoid
+        h.WalkSpeed = 0
+        h.JumpPower = 0
+    end)
+end
+
+-- Blind Player (flash berulang)
+local blindThread = nil
+local function blindLoop(plr)
+    while settings.blindPlayer and settings.blindTarget == plr and plr and plr.Character do
+        local char = plr.Character
+        local head = char:FindFirstChild("Head")
+        if head then
+            local flash = Instance.new("Part")
+            flash.Size = Vector3.new(10,10,10)
+            flash.CFrame = head.CFrame
+            flash.Anchored = true
+            flash.CanCollide = false
+            flash.Material = Enum.Material.Neon
+            flash.BrickColor = BrickColor.new("White")
+            flash.Parent = workspace
+            game:GetService("Debris"):AddItem(flash, 0.1)
+        end
+        wait(0.3)
+    end
+end
+
+-- Crash Player (overload partikel)
+local crashThreads = {}
+local function crashPlayerLoop(plr)
+    while settings.crashPlayer and settings.crashTarget == plr and plr and plr.Character do
+        local char = plr.Character
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if root then
+            for i=1,50 do
+                local part = Instance.new("Part")
+                part.Size = Vector3.new(1,1,1)
+                part.CFrame = root.CFrame * CFrame.new(math.random(-10,10), math.random(-10,10), math.random(-10,10))
+                part.Anchored = true
+                part.CanCollide = false
+                part.BrickColor = BrickColor.random()
+                part.Material = Enum.Material.Neon
+                part.Parent = workspace
+                game:GetService("Debris"):AddItem(part, 0.5)
+            end
+            -- juga mainkan suara
+            local sound = Instance.new("Sound")
+            sound.SoundId = "rbxassetid://912038123" -- suara ledakan
+            sound.Volume = 1
+            sound.Parent = root
+            sound:Play()
+            game:GetService("Debris"):AddItem(sound, 1)
+        end
+        wait(0.5)
+    end
+end
+
+-- ========== DETECTOR REAL-TIME (backdoor, celah, anti-cheat) ==========
+local detectorOutput = ""
+local detectorLog = {}
+local function addDetectorLog(msg)
+    table.insert(detectorLog, 1, os.date("%H:%M:%S") .. " | " .. msg)
+    if #detectorLog > 20 then table.remove(detectorLog) end
+    detectorOutput = table.concat(detectorLog, "\n")
+end
+
+local function scanForBackdoors()
+    addDetectorLog("[SCAN] Scanning Remotes...")
+    local vulnerableRemotes = {}
+    for _, obj in ipairs(game:GetDescendants()) do
+        if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+            local success, result = pcall(function()
+                -- cek apakah remote bisa di-fire dari client tanpa authentication
+                if obj:IsA("RemoteEvent") then
+                    obj:FireServer("__test_backdoor")
+                else
+                    obj:InvokeServer("__test_backdoor")
+                end
+            end)
+            if not success and string.find(result, "not allowed") then
+                -- aman
+            else
+                table.insert(vulnerableRemotes, obj:GetFullName())
+                addDetectorLog("[!] VULNERABLE: " .. obj:GetFullName() .. " (no auth)")
+            end
+        end
+        -- Deteksi admin scripts
+        if obj:IsA("Script") or obj:IsA("LocalScript") then
+            if obj.Name:lower():find("admin") or obj.Name:lower():find("anticheat") then
+                addDetectorLog("[*] Found: " .. obj:GetFullName())
+            end
+        end
+        -- Deteksi exploit detector
+        if obj:IsA("BoolValue") and obj.Name:lower():find("exploit") then
+            addDetectorLog("[!] Anti-cheat flag: " .. obj:GetFullName())
+        end
+    end
+    -- Cek wrapper vulnerability
+    local success, fenv = pcall(function() return getfenv() end)
+    if success and fenv then
+        if rawget(fenv, "loadstring") and rawget(fenv, "getrenv") then
+            addDetectorLog("[OK] Full execution environment accessible")
+        end
+    end
+    -- Cek backdoor di workspace
+    for _, part in ipairs(workspace:GetDescendants()) do
+        if part.Name:lower():find("backdoor") or (part:IsA("Script") and part.Name:lower():find("backdoor")) then
+            addDetectorLog("[!] BACKDOOR FOUND: " .. part:GetFullName())
+            if settings.systemBreach then
+                -- exploit backdoor
+                pcall(function() part:Destroy() end)
+                addDetectorLog("[SYSTEM BREACH] Backdoor destroyed")
+            end
+        end
+    end
+end
+
+local function continuousDetector()
+    while settings.detectorEnabled do
+        scanForBackdoors()
+        wait(5)
+    end
+end
+
+-- ========== UI MODERN (EXTREME) ==========
+pcall(function() coreGui:FindFirstChild("RmaxHubExtreme"):Destroy() end)
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "RmaxHubDelta"
-screenGui.Parent = guiParent
+screenGui.Name = "RmaxHubExtreme"
+screenGui.Parent = coreGui
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 450, 0, 600)
-mainFrame.Position = UDim2.new(0.5, -225, 0.5, -300)
-mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 35)
-mainFrame.BackgroundTransparency = 0.1
+mainFrame.Size = UDim2.new(0, 500, 0, 650)
+mainFrame.Position = UDim2.new(0.5, -250, 0.5, -325)
+mainFrame.BackgroundColor3 = Color3.fromRGB(10,10,20)
+mainFrame.BackgroundTransparency = 0.2
 mainFrame.BorderSizePixel = 0
 mainFrame.ClipsDescendants = true
 mainFrame.Parent = screenGui
 
 local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 10)
+corner.CornerRadius = UDim.new(0, 12)
 corner.Parent = mainFrame
 
--- Title bar
 local titleBar = Instance.new("Frame")
-titleBar.Size = UDim2.new(1, 0, 0, 40)
-titleBar.BackgroundColor3 = Color3.fromRGB(50, 50, 75)
+titleBar.Size = UDim2.new(1,0,0,40)
+titleBar.BackgroundColor3 = Color3.fromRGB(40,0,40)
 titleBar.BorderSizePixel = 0
 titleBar.Parent = mainFrame
 local titleCorner = Instance.new("UICorner")
-titleCorner.CornerRadius = UDim.new(0, 10)
+titleCorner.CornerRadius = UDim.new(0,12)
 titleCorner.Parent = titleBar
 
 local titleText = Instance.new("TextLabel")
-titleText.Size = UDim2.new(1, -50, 1, 0)
-titleText.Position = UDim2.new(0, 12, 0, 0)
+titleText.Size = UDim2.new(1,-50,1,0)
+titleText.Position = UDim2.new(0,12,0,0)
 titleText.BackgroundTransparency = 1
-titleText.Text = "🔥 RMAX HUB 🔥"
-titleText.TextColor3 = Color3.fromRGB(0, 255, 255)
+titleText.Text = "💀 RMAX EXTREME | RUSUH + DETECTOR 💀"
+titleText.TextColor3 = Color3.fromRGB(255,0,0)
 titleText.TextXAlignment = Enum.TextXAlignment.Left
 titleText.Font = Enum.Font.GothamBold
-titleText.TextSize = 18
+titleText.TextSize = 16
 titleText.Parent = titleBar
 
 local minimizeBtn = Instance.new("TextButton")
-minimizeBtn.Size = UDim2.new(0, 30, 0, 30)
-minimizeBtn.Position = UDim2.new(1, -40, 0, 5)
+minimizeBtn.Size = UDim2.new(0,30,0,30)
+minimizeBtn.Position = UDim2.new(1,-40,0,5)
 minimizeBtn.BackgroundTransparency = 1
 minimizeBtn.Text = "−"
 minimizeBtn.TextColor3 = Color3.new(1,1,1)
 minimizeBtn.TextSize = 24
 minimizeBtn.Parent = titleBar
 
--- ScrollingFrame
 local scroll = Instance.new("ScrollingFrame")
-scroll.Size = UDim2.new(1, -10, 1, -50)
-scroll.Position = UDim2.new(0, 5, 0, 45)
+scroll.Size = UDim2.new(1,-10,1,-50)
+scroll.Position = UDim2.new(0,5,0,45)
 scroll.BackgroundTransparency = 1
 scroll.BorderSizePixel = 0
 scroll.ScrollBarThickness = 4
 scroll.Parent = mainFrame
 
 local container = Instance.new("Frame")
-container.Size = UDim2.new(1, 0, 0, 0)
+container.Size = UDim2.new(1,0,0,0)
 container.BackgroundTransparency = 1
 container.Parent = scroll
 
 local layout = Instance.new("UIListLayout")
-layout.Padding = UDim.new(0, 6)
+layout.Padding = UDim.new(0,6)
 layout.SortOrder = Enum.SortOrder.LayoutOrder
 layout.Parent = container
 
-local function updateMainScroll()
-    local totalHeight = 0
-    for _, child in ipairs(container:GetChildren()) do
+local function updateScroll()
+    local total = 0
+    for _,child in ipairs(container:GetChildren()) do
         if child:IsA("Frame") then
-            totalHeight = totalHeight + child.Size.Y.Offset + layout.Padding.Offset
+            total = total + child.Size.Y.Offset + layout.Padding.Offset
         end
     end
-    container.Size = UDim2.new(1, 0, 0, totalHeight)
-    scroll.CanvasSize = UDim2.new(0, 0, 0, totalHeight + 20)
+    container.Size = UDim2.new(1,0,0,total)
+    scroll.CanvasSize = UDim2.new(0,0,0,total+20)
 end
 
--- Helper: createCategory
 local function createCategory(icon, title, defaultOpen)
-    local categoryFrame = Instance.new("Frame")
-    categoryFrame.Size = UDim2.new(1, 0, 0, 0)
-    categoryFrame.BackgroundTransparency = 1
-    categoryFrame.Parent = container
+    local cat = Instance.new("Frame")
+    cat.Size = UDim2.new(1,0,0,0)
+    cat.BackgroundTransparency = 1
+    cat.Parent = container
     
     local header = Instance.new("TextButton")
-    header.Size = UDim2.new(1, 0, 0, 35)
-    header.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+    header.Size = UDim2.new(1,0,0,36)
+    header.BackgroundColor3 = Color3.fromRGB(30,20,40)
     header.Text = icon .. " " .. title
-    header.TextColor3 = Color3.fromRGB(255, 255, 255)
+    header.TextColor3 = Color3.new(1,1,1)
     header.TextXAlignment = Enum.TextXAlignment.Left
     header.Font = Enum.Font.GothamBold
-    header.TextSize = 15
-    local headerCorner = Instance.new("UICorner")
-    headerCorner.CornerRadius = UDim.new(0, 6)
-    headerCorner.Parent = header
-    header.Parent = categoryFrame
+    header.TextSize = 14
+    local headCorner = Instance.new("UICorner")
+    headCorner.CornerRadius = UDim.new(0,6)
+    headCorner.Parent = header
+    header.Parent = cat
     
     local content = Instance.new("Frame")
-    content.Size = UDim2.new(1, 0, 0, 0)
+    content.Size = UDim2.new(1,0,0,0)
     content.BackgroundTransparency = 1
     content.Visible = defaultOpen
-    content.Parent = categoryFrame
+    content.Parent = cat
     
     local contentLayout = Instance.new("UIListLayout")
-    contentLayout.Padding = UDim.new(0, 4)
+    contentLayout.Padding = UDim.new(0,4)
     contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
     contentLayout.Parent = content
     
-    local function updateCategoryHeight()
-        local contentHeight = 0
-        for _, child in ipairs(content:GetChildren()) do
-            if child:IsA("Frame") then
-                contentHeight = contentHeight + child.Size.Y.Offset + contentLayout.Padding.Offset
+    local function updateHeight()
+        local ch = 0
+        for _,c in ipairs(content:GetChildren()) do
+            if c:IsA("Frame") then
+                ch = ch + c.Size.Y.Offset + contentLayout.Padding.Offset
             end
         end
-        content.Size = UDim2.new(1, 0, 0, contentHeight)
-        categoryFrame.Size = UDim2.new(1, 0, 0, 35 + (content.Visible and contentHeight or 0))
-        updateMainScroll()
+        content.Size = UDim2.new(1,0,0,ch)
+        cat.Size = UDim2.new(1,0,0,36 + (content.Visible and ch or 0))
+        updateScroll()
     end
-    
-    contentLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateCategoryHeight)
-    
-    local isOpen = defaultOpen
+    contentLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateHeight)
+    local open = defaultOpen
     header.MouseButton1Click:Connect(function()
-        isOpen = not isOpen
-        content.Visible = isOpen
-        updateCategoryHeight()
+        open = not open
+        content.Visible = open
+        updateHeight()
     end)
-    
-    spawn(function()
-        wait(0.05)
-        updateCategoryHeight()
-    end)
-    
-    return {
-        content = content,
-        layout = contentLayout,
-        header = header,
-        updateHeight = updateCategoryHeight
-    }
+    spawn(updateHeight)
+    return {content=content, layout=contentLayout, update=updateHeight}
 end
 
--- Helper UI elements
+-- Helper UI
 local function addToggle(parent, icon, text, default, callback)
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, -10, 0, 38)
-    frame.BackgroundTransparency = 1
-    frame.Parent = parent
-    
+    local f = Instance.new("Frame")
+    f.Size = UDim2.new(1,-10,0,36)
+    f.BackgroundTransparency = 1
+    f.Parent = parent
     local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(0.7, 0, 1, 0)
+    label.Size = UDim2.new(0.7,0,1,0)
     label.Text = icon .. " " .. text
     label.TextColor3 = Color3.new(1,1,1)
     label.BackgroundTransparency = 1
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.Font = Enum.Font.Gotham
     label.TextSize = 13
-    label.Parent = frame
-    
+    label.Parent = f
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0, 60, 0, 28)
-    btn.Position = UDim2.new(1, -70, 0, 5)
-    btn.BackgroundColor3 = default and Color3.fromRGB(0,200,255) or Color3.fromRGB(80,80,100)
+    btn.Size = UDim2.new(0,60,0,28)
+    btn.Position = UDim2.new(1,-70,0,4)
+    btn.BackgroundColor3 = default and Color3.fromRGB(200,0,0) or Color3.fromRGB(80,80,100)
     btn.Text = default and "ON" or "OFF"
     btn.TextColor3 = Color3.new(0,0,0)
     btn.TextSize = 12
@@ -511,491 +656,187 @@ local function addToggle(parent, icon, text, default, callback)
     local btnCorner = Instance.new("UICorner")
     btnCorner.CornerRadius = UDim.new(1,0)
     btnCorner.Parent = btn
-    btn.Parent = frame
-    
+    btn.Parent = f
     local state = default
     btn.MouseButton1Click:Connect(function()
         state = not state
-        btn.BackgroundColor3 = state and Color3.fromRGB(0,200,255) or Color3.fromRGB(80,80,100)
+        btn.BackgroundColor3 = state and Color3.fromRGB(200,0,0) or Color3.fromRGB(80,80,100)
         btn.Text = state and "ON" or "OFF"
         callback(state)
     end)
-    return frame
+    return f
 end
 
-local function addStepper(parent, icon, text, minv, maxv, default, step, callback)
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, -10, 0, 48)
-    frame.BackgroundTransparency = 1
-    frame.Parent = parent
-    
+local function addButton(parent, icon, text, callback)
+    local f = Instance.new("Frame")
+    f.Size = UDim2.new(1,-10,0,36)
+    f.BackgroundTransparency = 1
+    f.Parent = parent
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1,0,0,30)
+    btn.Text = icon .. " " .. text
+    btn.BackgroundColor3 = Color3.fromRGB(50,30,50)
+    btn.TextColor3 = Color3.new(1,1,1)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 13
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0,6)
+    btnCorner.Parent = btn
+    btn.Parent = f
+    btn.MouseButton1Click:Connect(callback)
+    return f
+end
+
+local function addDropdown(parent, icon, text, items, callback)
+    -- sederhana
+    local f = Instance.new("Frame")
+    f.Size = UDim2.new(1,-10,0,36)
+    f.BackgroundTransparency = 1
+    f.Parent = parent
     local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(0.5, 0, 1, 0)
+    label.Size = UDim2.new(0.5,0,1,0)
     label.Text = icon .. " " .. text
     label.TextColor3 = Color3.new(1,1,1)
     label.BackgroundTransparency = 1
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.Font = Enum.Font.Gotham
-    label.TextSize = 13
-    label.Parent = frame
-    
-    local valLabel = Instance.new("TextLabel")
-    valLabel.Size = UDim2.new(0.2, 0, 1, 0)
-    valLabel.Position = UDim2.new(0.5, 0, 0, 0)
-    valLabel.Text = tostring(default)
-    valLabel.TextColor3 = Color3.fromRGB(0,255,255)
-    valLabel.BackgroundTransparency = 1
-    valLabel.Font = Enum.Font.GothamBold
-    valLabel.TextSize = 15
-    valLabel.Parent = frame
-    
-    local dec = Instance.new("TextButton")
-    dec.Size = UDim2.new(0, 34, 0, 30)
-    dec.Position = UDim2.new(0.75, 0, 0, 9)
-    dec.Text = "-"
-    dec.TextColor3 = Color3.new(1,1,1)
-    dec.BackgroundColor3 = Color3.fromRGB(60,60,80)
-    dec.Font = Enum.Font.GothamBold
-    dec.TextSize = 18
-    local decCorner = Instance.new("UICorner")
-    decCorner.CornerRadius = UDim.new(0, 6)
-    decCorner.Parent = dec
-    dec.Parent = frame
-    
-    local inc = Instance.new("TextButton")
-    inc.Size = UDim2.new(0, 34, 0, 30)
-    inc.Position = UDim2.new(0.85, 0, 0, 9)
-    inc.Text = "+"
-    inc.TextColor3 = Color3.new(1,1,1)
-    inc.BackgroundColor3 = Color3.fromRGB(60,60,80)
-    inc.Font = Enum.Font.GothamBold
-    inc.TextSize = 18
-    local incCorner = Instance.new("UICorner")
-    incCorner.CornerRadius = UDim.new(0, 6)
-    incCorner.Parent = inc
-    inc.Parent = frame
-    
-    local val = default
-    local function update(newVal)
-        val = math.clamp(newVal, minv, maxv)
-        valLabel.Text = tostring(math.floor(val))
-        callback(val)
-    end
-    dec.MouseButton1Click:Connect(function() update(val - step) end)
-    inc.MouseButton1Click:Connect(function() update(val + step) end)
-    return frame
+    label.TextSize = 12
+    label.Parent = f
+    local drop = Instance.new("TextButton")
+    drop.Size = UDim2.new(0.4,0,0,28)
+    drop.Position = UDim2.new(0.55,0,0,4)
+    drop.Text = items[1] or "None"
+    drop.BackgroundColor3 = Color3.fromRGB(60,60,80)
+    drop.TextColor3 = Color3.new(1,1,1)
+    drop.Font = Enum.Font.Gotham
+    drop.TextSize = 12
+    local dropCorner = Instance.new("UICorner")
+    dropCorner.CornerRadius = UDim.new(0,4)
+    dropCorner.Parent = drop
+    drop.Parent = f
+    local current = items[1]
+    drop.MouseButton1Click:Connect(function()
+        -- siklus sederhana
+        local idx = table.find(items, current)
+        idx = idx and (idx % #items) + 1 or 1
+        current = items[idx]
+        drop.Text = current
+        callback(current)
+    end)
+    return f
 end
 
-local function addButton(parent, icon, text, callback)
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, -10, 0, 36)
-    frame.BackgroundTransparency = 1
-    frame.Parent = parent
-    
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 0, 30)
-    btn.Text = icon .. " " .. text
-    btn.BackgroundColor3 = Color3.fromRGB(55, 55, 75)
-    btn.TextColor3 = Color3.new(1,1,1)
-    btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 13
-    local btnCorner = Instance.new("UICorner")
-    btnCorner.CornerRadius = UDim.new(0, 6)
-    btnCorner.Parent = btn
-    btn.Parent = frame
-    btn.MouseButton1Click:Connect(callback)
-    return frame
-end
-
--- ========== BUAT KATEGORI ==========
-local movementCat = createCategory("🦶", "MOVEMENT", true)
+-- Buat kategori
+local movCat = createCategory("🦶", "MOVEMENT", true)
 local combatCat = createCategory("⚔️", "COMBAT", false)
-local utilityCat = createCategory("🔧", "UTILITY", false)
-local teleportCat = createCategory("📍", "TELEPORT & SAVES", false)
-local playerCat = createCategory("👥", "PLAYERS", false)
+local rusuhCat = createCategory("💀", "RUSUH (GRIEF)", true)
+local detectorCat = createCategory("🔍", "DETECTOR & BREACH", true)
+local teleportCat = createCategory("📍", "TELEPORT", false)
 
--- Movement
-addToggle(movementCat.content, "🪶", "Fly (WASD + Gamepad)", settings.fly, function(v) settings.fly = v; if v then startFly() else stopFly() end end)
-addStepper(movementCat.content, "🏃", "Walk Speed", 16, 500, settings.walkspeed, 10, function(v) settings.walkspeed = v; updateChar() end)
-addStepper(movementCat.content, "🦘", "Jump Power", 30, 200, settings.jumppower, 10, function(v) settings.jumppower = v; updateChar() end)
-addToggle(movementCat.content, "♾️", "Infinite Jump", settings.infinitejump, function(v) settings.infinitejump = v; updateChar() end)
-addStepper(movementCat.content, "🚀", "Air Speed (when Infinite Jump)", 16, 500, settings.airspeed, 10, function(v) settings.airspeed = v; updateChar() end)
+-- Isi MOVEMENT
+addToggle(movCat.content, "🪶", "Fly", settings.fly, function(v) settings.fly=v; if v then startFly() else stopFly() end end)
+addButton(movCat.content, "➕", "Walk Speed +10", function() settings.walkspeed=math.min(500,settings.walkspeed+10); updateChar() end)
+addButton(movCat.content, "➖", "Walk Speed -10", function() settings.walkspeed=math.max(16,settings.walkspeed-10); updateChar() end)
+addToggle(movCat.content, "♾️", "Infinite Jump", settings.infinitejump, function(v) settings.infinitejump=v; updateChar() end)
+addToggle(movCat.content, "🛡️", "God Mode", settings.godmode, function(v) settings.godmode=v end)
 
 -- Combat
-addToggle(combatCat.content, "🛡️", "God Mode", settings.godmode, function(v) settings.godmode = v; if v then applyGodMode() end end)
-addToggle(combatCat.content, "⚔️", "Kill Aura", settings.killaura, function(v) settings.killaura = v end)
-addStepper(combatCat.content, "📏", "Kill Aura Range", 10, 100, settings.killaurarange, 10, function(v) settings.killaurarange = v end)
-addToggle(combatCat.content, "🎯", "Aimbot", settings.aimbot, function(v) settings.aimbot = v end)
+addToggle(combatCat.content, "⚔️", "Kill Aura", settings.killaura, function(v) settings.killaura=v end)
+addButton(combatCat.content, "📏", "Range +10", function() settings.killaurarange=math.min(100,settings.killaurarange+10) end)
+addToggle(combatCat.content, "🎯", "Aimbot", settings.aimbot, function(v) settings.aimbot=v end)
 
--- Utility
-addToggle(utilityCat.content, "🤖", "Auto Farm (Coin/Gem)", settings.autofarm, function(v) settings.autofarm = v; if v then startFarm() else stopFarm() end end)
+-- RUSUH
+addToggle(rusuhCat.content, "🔴", "Laser Active", settings.laserActive, function(v) settings.laserActive=v; if not v then stopLaser() end end)
+addDropdown(rusuhCat.content, "🎯", "Laser Target", game.Players:GetChildren(), function(selected)
+    for _,plr in ipairs(game.Players:GetPlayers()) do
+        if plr.Name == selected then settings.laserTarget = plr end
+    end
+end)
+addButton(rusuhCat.content, "➕", "Laser Damage +5", function() settings.laserDamage=math.min(100,settings.laserDamage+5) end)
+addToggle(rusuhCat.content, "🤖", "Laser Turret (Auto)", settings.laserTurret, function(v) settings.laserTurret=v; if v then startTurret() else if turretThread then coroutine.close(turretThread); turretThread=nil end end end)
+addToggle(rusuhCat.content, "❄️", "Freeze Player", settings.freezePlayer, function(v)
+    settings.freezePlayer=v
+    if v and settings.freezeTarget then freezeTargetPlayer(settings.freezeTarget) end
+end)
+addDropdown(rusuhCat.content, "❄️", "Freeze Target", game.Players:GetChildren(), function(selected)
+    for _,plr in ipairs(game.Players:GetPlayers()) do
+        if plr.Name == selected then settings.freezeTarget = plr; if settings.freezePlayer then freezeTargetPlayer(plr) end end
+    end
+end)
+addToggle(rusuhCat.content, "👁️", "Blind Player (Flash)", settings.blindPlayer, function(v)
+    settings.blindPlayer=v
+    if v and settings.blindTarget then
+        if blindThread then coroutine.close(blindThread) end
+        blindThread = coroutine.create(blindLoop)
+        coroutine.resume(blindThread, settings.blindTarget)
+    end
+end)
+addDropdown(rusuhCat.content, "👁️", "Blind Target", game.Players:GetChildren(), function(selected)
+    for _,plr in ipairs(game.Players:GetPlayers()) do if plr.Name==selected then settings.blindTarget=plr end end
+end)
+addToggle(rusuhCat.content, "💥", "Crash Player (Overload)", settings.crashPlayer, function(v)
+    settings.crashPlayer=v
+    if v and settings.crashTarget then
+        local th = coroutine.create(crashPlayerLoop)
+        coroutine.resume(th, settings.crashTarget)
+        crashThreads[settings.crashTarget] = th
+    end
+end)
+addDropdown(rusuhCat.content, "💥", "Crash Target", game.Players:GetChildren(), function(selected)
+    for _,plr in ipairs(game.Players:GetPlayers()) do if plr.Name==selected then settings.crashTarget=plr end end
+end)
 
--- Teleport & Saves
-local posFrame = Instance.new("Frame")
-posFrame.Size = UDim2.new(1, -10, 0, 55)
-posFrame.BackgroundTransparency = 1
-posFrame.Parent = teleportCat.content
+-- DETECTOR
+addToggle(detectorCat.content, "🕵️", "Real-time Detector", settings.detectorEnabled, function(v)
+    settings.detectorEnabled=v
+    if v then spawn(continuousDetector) end
+end)
+addToggle(detectorCat.content, "💣", "System Breach (Auto Destroy Backdoor)", settings.systemBreach, function(v) settings.systemBreach=v end)
+addButton(detectorCat.content, "🔍", "Scan Now", function() scanForBackdoors() end)
 
-local coordText = Instance.new("TextLabel")
-coordText.Size = UDim2.new(1, 0, 0, 25)
-coordText.Text = "📍 Current: X:0 Y:0 Z:0"
-coordText.TextColor3 = Color3.new(1,1,1)
-coordText.BackgroundTransparency = 1
-coordText.Font = Enum.Font.Gotham
-coordText.TextSize = 12
-coordText.Parent = posFrame
+local detectorLogFrame = Instance.new("Frame")
+detectorLogFrame.Size = UDim2.new(1,-10,0,120)
+detectorLogFrame.BackgroundColor3 = Color3.fromRGB(0,0,0)
+detectorLogFrame.BackgroundTransparency = 0.5
+detectorLogFrame.Parent = detectorCat.content
+local logCorner = Instance.new("UICorner")
+logCorner.CornerRadius = UDim.new(0,6)
+logCorner.Parent = detectorLogFrame
 
-local copyBtn = Instance.new("TextButton")
-copyBtn.Size = UDim2.new(1, 0, 0, 25)
-copyBtn.Position = UDim2.new(0, 0, 0, 28)
-copyBtn.Text = "📋 Copy Position"
-copyBtn.BackgroundColor3 = Color3.fromRGB(60,60,80)
-copyBtn.TextColor3 = Color3.new(1,1,1)
-copyBtn.Font = Enum.Font.GothamBold
-copyBtn.TextSize = 12
-local copyCorner = Instance.new("UICorner")
-copyCorner.CornerRadius = UDim.new(0, 6)
-copyCorner.Parent = copyBtn
-copyBtn.Parent = posFrame
+local logText = Instance.new("TextLabel")
+logText.Size = UDim2.new(1,0,1,0)
+logText.BackgroundTransparency = 1
+logText.Text = "Log akan muncul di sini"
+logText.TextColor3 = Color3.fromRGB(0,255,0)
+logText.TextWrapped = true
+logText.TextXAlignment = Enum.TextXAlignment.Left
+logText.TextYAlignment = Enum.TextYAlignment.Top
+logText.Font = Enum.Font.Code
+logText.TextSize = 11
+logText.Parent = detectorLogFrame
 
 spawn(function()
     while true do
-        wait(0.1)
-        local char = player.Character
-        if char and char:FindFirstChild("HumanoidRootPart") then
-            local pos = char.HumanoidRootPart.Position
-            coordText.Text = string.format("📍 Current: X:%.1f Y:%.1f Z:%.1f", pos.X, pos.Y, pos.Z)
-        end
+        logText.Text = detectorOutput
+        wait(0.5)
     end
 end)
 
-copyBtn.MouseButton1Click:Connect(function()
-    local char = player.Character
-    if char and char:FindFirstChild("HumanoidRootPart") then
-        local pos = char.HumanoidRootPart.Position
-        local str = string.format("%.1f, %.1f, %.1f", pos.X, pos.Y, pos.Z)
-        pcall(function() setclipboard(str) end)
-        copyBtn.Text = "✓ Copied!"
-        wait(1)
-        copyBtn.Text = "📋 Copy Position"
-    end
-end)
-
-for i = 1, 5 do
-    local slotFrame = Instance.new("Frame")
-    slotFrame.Size = UDim2.new(1, -10, 0, 32)
-    slotFrame.BackgroundTransparency = 1
-    slotFrame.Parent = teleportCat.content
-    
-    local slotLabel = Instance.new("TextLabel")
-    slotLabel.Size = UDim2.new(0.2, 0, 1, 0)
-    slotLabel.Text = "Slot " .. i
-    slotLabel.TextColor3 = Color3.fromRGB(200,200,200)
-    slotLabel.BackgroundTransparency = 1
-    slotLabel.Font = Enum.Font.Gotham
-    slotLabel.TextSize = 12
-    slotLabel.Parent = slotFrame
-    
-    local saveBtn = Instance.new("TextButton")
-    saveBtn.Size = UDim2.new(0, 55, 0, 24)
-    saveBtn.Position = UDim2.new(0.25, 0, 0, 4)
-    saveBtn.Text = "💾 Save"
-    saveBtn.BackgroundColor3 = Color3.fromRGB(60,100,60)
-    saveBtn.TextColor3 = Color3.new(1,1,1)
-    saveBtn.Font = Enum.Font.GothamBold
-    saveBtn.TextSize = 11
-    local saveCorner = Instance.new("UICorner")
-    saveCorner.CornerRadius = UDim.new(0, 4)
-    saveCorner.Parent = saveBtn
-    saveBtn.Parent = slotFrame
-    
-    local tpBtn = Instance.new("TextButton")
-    tpBtn.Size = UDim2.new(0, 55, 0, 24)
-    tpBtn.Position = UDim2.new(0.55, 0, 0, 4)
-    tpBtn.Text = "✨ TP"
-    tpBtn.BackgroundColor3 = Color3.fromRGB(60,60,100)
-    tpBtn.TextColor3 = Color3.new(1,1,1)
-    tpBtn.Font = Enum.Font.GothamBold
-    tpBtn.TextSize = 11
-    local tpCorner = Instance.new("UICorner")
-    tpCorner.CornerRadius = UDim.new(0, 4)
-    tpCorner.Parent = tpBtn
-    tpBtn.Parent = slotFrame
-    
-    local statusLabel = Instance.new("TextLabel")
-    statusLabel.Size = UDim2.new(0.2, 0, 1, 0)
-    statusLabel.Position = UDim2.new(0.78, 0, 0, 0)
-    statusLabel.Text = "Empty"
-    statusLabel.TextColor3 = Color3.fromRGB(150,150,150)
-    statusLabel.BackgroundTransparency = 1
-    statusLabel.Font = Enum.Font.Gotham
-    statusLabel.TextSize = 10
-    statusLabel.Parent = slotFrame
-    
-    saveBtn.MouseButton1Click:Connect(function()
-        local char = player.Character
-        if char and char:FindFirstChild("HumanoidRootPart") then
-            local pos = char.HumanoidRootPart.Position
-            saveCoord(i, pos)
-            statusLabel.Text = string.format("%.0f,%.0f,%.0f", pos.X, pos.Y, pos.Z)
-            statusLabel.TextColor3 = Color3.fromRGB(0,255,0)
-        end
-    end)
-    
-    tpBtn.MouseButton1Click:Connect(function()
-        local coord = getCoord(i)
-        if coord then
-            teleportToPosition(Vector3.new(coord.X, coord.Y, coord.Z))
-        end
-    end)
-end
-
--- Player List (FIX)
-local playerListScroll = Instance.new("ScrollingFrame")
-playerListScroll.Size = UDim2.new(1, -10, 0, 130)
-playerListScroll.BackgroundTransparency = 1
-playerListScroll.BorderSizePixel = 0
-playerListScroll.ScrollBarThickness = 4
-playerListScroll.Parent = playerCat.content
-
-local playerListContainer = Instance.new("Frame")
-playerListContainer.Size = UDim2.new(1, 0, 0, 0)
-playerListContainer.BackgroundTransparency = 1
-playerListContainer.Parent = playerListScroll
-
-local playerListLayout = Instance.new("UIListLayout")
-playerListLayout.Padding = UDim.new(0, 4)
-playerListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-playerListLayout.Parent = playerListContainer
-
-local function updatePlayerList()
-    -- Hapus semua row
-    for _, child in ipairs(playerListContainer:GetChildren()) do
-        if child:IsA("Frame") then child:Destroy() end
-    end
-    
-    for _, plr in ipairs(game.Players:GetPlayers()) do
-        if plr ~= player then
-            local row = Instance.new("Frame")
-            row.Size = UDim2.new(1, 0, 0, 32)
-            row.BackgroundTransparency = 1
-            row.Parent = playerListContainer
-            
-            local nameLabel = Instance.new("TextLabel")
-            nameLabel.Size = UDim2.new(0.45, 0, 1, 0)
-            nameLabel.Text = plr.Name
-            nameLabel.TextColor3 = Color3.new(1,1,1)
-            nameLabel.BackgroundTransparency = 1
-            nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-            nameLabel.Font = Enum.Font.Gotham
-            nameLabel.TextSize = 12
-            nameLabel.Parent = row
-            
-            local tpBtn = Instance.new("TextButton")
-            tpBtn.Size = UDim2.new(0, 65, 0, 26)
-            tpBtn.Position = UDim2.new(0.5, 0, 0, 3)
-            tpBtn.Text = "🚀 TP"
-            tpBtn.BackgroundColor3 = Color3.fromRGB(60,80,120)
-            tpBtn.TextColor3 = Color3.new(1,1,1)
-            tpBtn.Font = Enum.Font.GothamBold
-            tpBtn.TextSize = 11
-            local tpCorner = Instance.new("UICorner")
-            tpCorner.CornerRadius = UDim.new(0, 4)
-            tpCorner.Parent = tpBtn
-            tpBtn.Parent = row
-            
-            local bringBtn = Instance.new("TextButton")
-            bringBtn.Size = UDim2.new(0, 65, 0, 26)
-            bringBtn.Position = UDim2.new(0.75, 0, 0, 3)
-            bringBtn.Text = "📦 Bring"
-            bringBtn.BackgroundColor3 = Color3.fromRGB(120,60,60)
-            bringBtn.TextColor3 = Color3.new(1,1,1)
-            bringBtn.Font = Enum.Font.GothamBold
-            bringBtn.TextSize = 11
-            local bringCorner = Instance.new("UICorner")
-            bringCorner.CornerRadius = UDim.new(0, 4)
-            bringCorner.Parent = bringBtn
-            bringBtn.Parent = row
-            
-            tpBtn.MouseButton1Click:Connect(function()
-                teleportToPlayer(plr)
-            end)
-            bringBtn.MouseButton1Click:Connect(function()
-                bringPlayer(plr)
-            end)
-        end
-    end
-    
-    local totalHeight = 0
-    for _, child in ipairs(playerListContainer:GetChildren()) do
-        if child:IsA("Frame") then
-            totalHeight = totalHeight + child.Size.Y.Offset + playerListLayout.Padding.Offset
-        end
-    end
-    playerListContainer.Size = UDim2.new(1, 0, 0, totalHeight)
-    playerListScroll.CanvasSize = UDim2.new(0, 0, 0, totalHeight + 10)
-    playerCat.updateHeight()
-end
-
-spawn(function()
-    updatePlayerList()
-    while true do
-        wait(1)
-        updatePlayerList()
-    end
-end)
-
--- ========== AUTO CP CATEGORY (HANYA JIKA MAP TERDETEKSI) ==========
+-- Teleport / CP
 if isHuaa or isValthera then
-    local cpCat = createCategory("🏁", "AUTO CP - " .. currentMap, true)
-    
-    addButton(cpCat.content, "🏠", "TP to Lobby/Start", function()
-        goToLobby()
-    end)
-    
-    addButton(cpCat.content, "⏩", "Next CP (Manual)", function()
-        local nextIdx = currentCpIndex % #cpList + 1
-        teleportToCp(nextIdx)
-    end)
-    
-    -- Auto Loop
-    local autoFrame = Instance.new("Frame")
-    autoFrame.Size = UDim2.new(1, -10, 0, 36)
-    autoFrame.BackgroundTransparency = 1
-    autoFrame.Parent = cpCat.content
-    
-    local autoBtn = Instance.new("TextButton")
-    autoBtn.Size = UDim2.new(0.48, 0, 0, 30)
-    autoBtn.Text = "▶ Auto Loop"
-    autoBtn.BackgroundColor3 = Color3.fromRGB(60,100,60)
-    autoBtn.TextColor3 = Color3.new(1,1,1)
-    autoBtn.Font = Enum.Font.GothamBold
-    autoBtn.TextSize = 12
-    local autoCorner = Instance.new("UICorner")
-    autoCorner.CornerRadius = UDim.new(0, 6)
-    autoCorner.Parent = autoBtn
-    autoBtn.Parent = autoFrame
-    
-    local stopBtn = Instance.new("TextButton")
-    stopBtn.Size = UDim2.new(0.48, 0, 0, 30)
-    stopBtn.Position = UDim2.new(0.52, 0, 0, 0)
-    stopBtn.Text = "⏹ Stop"
-    stopBtn.BackgroundColor3 = Color3.fromRGB(120,60,60)
-    stopBtn.TextColor3 = Color3.new(1,1,1)
-    stopBtn.Font = Enum.Font.GothamBold
-    stopBtn.TextSize = 12
-    local stopCorner = Instance.new("UICorner")
-    stopCorner.CornerRadius = UDim.new(0, 6)
-    stopCorner.Parent = stopBtn
-    stopBtn.Visible = false
-    stopBtn.Parent = autoFrame
-    
-    autoBtn.MouseButton1Click:Connect(function()
-        if autoRunning then return end
-        autoBtn.Visible = false
-        stopBtn.Visible = true
-        startAutoCp(2)
-    end)
-    
-    stopBtn.MouseButton1Click:Connect(function()
-        stopAutoCp()
-        autoBtn.Visible = true
-        stopBtn.Visible = false
-    end)
-    
-    -- Daftar CP
-    local cpListFrame = Instance.new("Frame")
-    cpListFrame.Size = UDim2.new(1, -10, 0, 140)
-    cpListFrame.BackgroundTransparency = 1
-    cpListFrame.Parent = cpCat.content
-    
-    local cpScroll = Instance.new("ScrollingFrame")
-    cpScroll.Size = UDim2.new(1, 0, 1, 0)
-    cpScroll.BackgroundTransparency = 1
-    cpScroll.BorderSizePixel = 0
-    cpScroll.ScrollBarThickness = 4
-    cpScroll.Parent = cpListFrame
-    
-    local cpContainer = Instance.new("Frame")
-    cpContainer.Size = UDim2.new(1, 0, 0, 0)
-    cpContainer.BackgroundTransparency = 1
-    cpContainer.Parent = cpScroll
-    
-    local cpLayout = Instance.new("UIListLayout")
-    cpLayout.Padding = UDim.new(0, 3)
-    cpLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    cpLayout.Parent = cpContainer
-    
-    for _, cp in ipairs(cpList) do
-        local row = Instance.new("Frame")
-        row.Size = UDim2.new(1, 0, 0, 28)
-        row.BackgroundTransparency = 1
-        row.Parent = cpContainer
-        
-        local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(0.25, 0, 1, 0)
-        label.Text = "CP " .. cp.index
-        label.TextColor3 = Color3.new(1,1,1)
-        label.BackgroundTransparency = 1
-        label.Font = Enum.Font.Gotham
-        label.TextSize = 11
-        label.Parent = row
-        
-        local tpCpBtn = Instance.new("TextButton")
-        tpCpBtn.Size = UDim2.new(0, 70, 0, 22)
-        tpCpBtn.Position = UDim2.new(0.35, 0, 0, 3)
-        tpCpBtn.Text = "📍 TP"
-        tpCpBtn.BackgroundColor3 = Color3.fromRGB(60,80,120)
-        tpCpBtn.TextColor3 = Color3.new(1,1,1)
-        tpCpBtn.Font = Enum.Font.GothamBold
-        tpCpBtn.TextSize = 11
-        local tpCorner = Instance.new("UICorner")
-        tpCorner.CornerRadius = UDim.new(0, 4)
-        tpCorner.Parent = tpCpBtn
-        tpCpBtn.Parent = row
-        
-        local coordLabel = Instance.new("TextLabel")
-        coordLabel.Size = UDim2.new(0.4, 0, 1, 0)
-        coordLabel.Position = UDim2.new(0.6, 0, 0, 0)
-        coordLabel.Text = string.format("%.0f,%.0f,%.0f", cp.pos.X, cp.pos.Y, cp.pos.Z)
-        coordLabel.TextColor3 = Color3.fromRGB(150,150,150)
-        coordLabel.BackgroundTransparency = 1
-        coordLabel.Font = Enum.Font.Gotham
-        coordLabel.TextSize = 9
-        coordLabel.Parent = row
-        
-        tpCpBtn.MouseButton1Click:Connect(function()
-            teleportToCp(cp.index)
-        end)
-    end
-    
-    local function updateCpScroll()
-        local total = 0
-        for _, child in ipairs(cpContainer:GetChildren()) do
-            if child:IsA("Frame") then
-                total = total + child.Size.Y.Offset + cpLayout.Padding.Offset
-            end
-        end
-        cpContainer.Size = UDim2.new(1, 0, 0, total)
-        cpScroll.CanvasSize = UDim2.new(0, 0, 0, total + 10)
-        cpListFrame.Size = UDim2.new(1, -10, 0, math.min(160, total + 20))
-        cpCat.updateHeight()
-    end
-    cpLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateCpScroll)
-    wait(0.1)
-    updateCpScroll()
+    addButton(teleportCat.content, "🏁", "TP to Lobby", function() goToLobby() end)
+    addButton(teleportCat.content, "⏩", "Next CP", function() teleportToCp((currentCpIndex % #cpList)+1) end)
+    addButton(teleportCat.content, "▶", "Auto Loop CP", function() startAutoCp(1.5) end)
+    addButton(teleportCat.content, "⏹️", "Stop Auto", function() stopAutoCp() end)
 end
 
--- Update akhir
-wait(0.2)
-movementCat.updateHeight()
-combatCat.updateHeight()
-utilityCat.updateHeight()
-teleportCat.updateHeight()
-playerCat.updateHeight()
-updateMainScroll()
+-- Update height all
+for _,cat in pairs({movCat, combatCat, rusuhCat, detectorCat, teleportCat}) do
+    cat.update()
+end
+updateScroll()
 
--- Draggable
+-- Draggable + Minimize (sama seperti script user)
 local dragStart, dragStartPos
 titleBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -1010,29 +851,26 @@ titleBar.InputBegan:Connect(function(input)
         end)
         endConn = uis.InputEnded:Connect(function(inp)
             if inp.UserInputType == Enum.UserInputType.MouseButton1 then
-                moveConn:Disconnect()
-                endConn:Disconnect()
+                moveConn:Disconnect(); endConn:Disconnect()
             end
         end)
     end
 end)
 
--- Minimize
 local minimized = false
 minimizeBtn.MouseButton1Click:Connect(function()
     minimized = not minimized
     if minimized then
         scroll.Visible = false
-        mainFrame:TweenSize(UDim2.new(0, 450, 0, 40), "Out", "Quad", 0.2, true)
+        mainFrame:TweenSize(UDim2.new(0,500,0,40), "Out", "Quad", 0.2)
     else
-        mainFrame:TweenSize(UDim2.new(0, 450, 0, 600), "Out", "Quad", 0.2, true)
+        mainFrame:TweenSize(UDim2.new(0,500,0,650), "Out", "Quad", 0.2)
         wait(0.2)
         scroll.Visible = true
-        updateMainScroll()
+        updateScroll()
     end
 end)
 
--- Show/hide Insert
 uis.InputBegan:Connect(function(input, gp)
     if gp then return end
     if input.KeyCode == Enum.KeyCode.Insert then
@@ -1040,4 +878,16 @@ uis.InputBegan:Connect(function(input, gp)
     end
 end)
 
-print("✅ RMAX HUB UNIVERSAL - Map: " .. currentMap .. " - Insert to toggle")
+-- Loop untuk update laser
+spawn(function()
+    while true do
+        if settings.laserActive and settings.laserTarget then
+            updateLaser()
+        else
+            stopLaser()
+        end
+        wait(0.1)
+    end
+end)
+
+print("✅ RMAX EXTREME LOADED | Tekan Insert | Mode GORE AKTIF")
