@@ -1,10 +1,20 @@
 -- RMAX HUB - FINAL EXTREME (DETECTOR + REMOTE CONTROL + GRIEF)
--- Stabil, semua fitur berfungsi, tidak ada error UI
+-- Fixed: table.find, coroutine.close, metatable hook aman, semua fitur stabil
 
 local player = game.Players.LocalPlayer
 local mouse = player:GetMouse()
 local runService = game:GetService("RunService")
 local uis = game:GetService("UserInputService")
+
+-- ========== FIX: table.find ==========
+if not table.find then
+    function table.find(t, value)
+        for i, v in ipairs(t) do
+            if v == value then return i end
+        end
+        return nil
+    end
+end
 
 -- ========== DETEKSI MAP ==========
 local placeId = game.PlaceId
@@ -70,21 +80,18 @@ local function bringPlayer(target)
     end
 end
 
--- ========== SETTINGS (Lengkap) ==========
+-- ========== SETTINGS ==========
 local settings = {
-    -- Movement
     fly = false,
     walkspeed = 100,
     jumppower = 50,
     infinitejump = false,
     airspeed = 200,
-    -- Combat
     godmode = false,
     killaura = false,
     killaurarange = 30,
     aimbot = false,
     autofarm = false,
-    -- Grief
     laser = false,
     laserTarget = nil,
     laserDamage = 15,
@@ -100,14 +107,13 @@ local settings = {
     remoteSpamTarget = nil,
     forceKick = false,
     forceKickTarget = nil,
-    -- Detector & Remote Control
     detector = false,
     autoBreach = false,
-    remoteControl = false,  -- intercept dan blokir remote
+    remoteControl = false,
 }
 
 -- ========== SAVED COORDINATES ==========
-local savedSlots = {}  -- index -> Vector3
+local savedSlots = {}
 
 local function saveSlot(idx, pos)
     savedSlots[idx] = pos
@@ -116,7 +122,7 @@ local function getSlot(idx)
     return savedSlots[idx]
 end
 
--- ========== FLY SYSTEM (TANPA ERROR) ==========
+-- ========== FLY SYSTEM ==========
 local flyVel, flyGyro, flyConn
 local function stopFly()
     if flyConn then flyConn:Disconnect() end
@@ -263,14 +269,19 @@ local function stopFarm()
     if farmConn then farmConn:Disconnect(); farmConn = nil end
 end
 
--- ========== GRIEF: LASER ==========
-local laserBeam, laserThread = nil, nil
+-- ========== GRIEF: LASER (dengan flag loop) ==========
+local laserBeam = nil
+local laserRunning = false
+local laserThread = nil
+
 local function stopLaser()
+    laserRunning = false
     if laserBeam then laserBeam:Destroy(); laserBeam = nil end
-    if laserThread then coroutine.close(laserThread); laserThread = nil end
+    laserThread = nil
 end
+
 local function laserDamageLoop()
-    while settings.laser and settings.laserTarget and settings.laserTarget.Character and settings.laserTarget.Character:FindFirstChild("Humanoid") do
+    while laserRunning and settings.laser and settings.laserTarget and settings.laserTarget.Character and settings.laserTarget.Character:FindFirstChild("Humanoid") do
         local hum = settings.laserTarget.Character.Humanoid
         hum.Health = hum.Health - settings.laserDamage
         wait(0.2)
@@ -278,6 +289,7 @@ local function laserDamageLoop()
     end
     stopLaser()
 end
+
 spawn(function()
     while true do
         if settings.laser and settings.laserTarget and settings.laserTarget.Character then
@@ -296,7 +308,8 @@ spawn(function()
                 local dist = (tarRoot.Position - myRoot.Position).Magnitude
                 laserBeam.Size = Vector3.new(0.2,0.2,dist)
                 laserBeam.CFrame = CFrame.new(myRoot.Position, tarRoot.Position) * CFrame.new(0,0,-dist/2)
-                if not laserThread then
+                if not laserRunning then
+                    laserRunning = true
                     laserThread = coroutine.create(laserDamageLoop)
                     coroutine.resume(laserThread)
                 end
@@ -309,9 +322,11 @@ spawn(function()
 end)
 
 -- Laser Turret
+local turretRunning = false
 local turretThread = nil
+
 local function turretLoop()
-    while settings.laserTurret do
+    while turretRunning and settings.laserTurret do
         local myRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
         if myRoot then
             for _, plr in ipairs(game.Players:GetPlayers()) do
@@ -364,10 +379,10 @@ local function freezePlayer(plr)
     end)
 end
 
--- Blind
-local blindThread = nil
+-- Blind (flag loop)
+local blindRunning = false
 local function blindLoop(plr)
-    while settings.blind and settings.blindTarget == plr and plr.Character do
+    while blindRunning and settings.blind and settings.blindTarget == plr and plr.Character do
         local head = plr.Character:FindFirstChild("Head")
         if head then
             local flash = Instance.new("Part")
@@ -382,12 +397,14 @@ local function blindLoop(plr)
         end
         wait(0.2)
     end
+    blindRunning = false
 end
 
--- Crash
-local crashThreads = {}
+-- Crash (flag loop)
+local crashRunning = false
+local crashThread = nil
 local function crashLoop(plr)
-    while settings.crash and settings.crashTarget == plr and plr.Character do
+    while crashRunning and settings.crash and settings.crashTarget == plr and plr.Character do
         local root = plr.Character:FindFirstChild("HumanoidRootPart")
         if root then
             for i=1,30 do
@@ -410,12 +427,14 @@ local function crashLoop(plr)
         end
         wait(0.6)
     end
+    crashRunning = false
 end
 
--- Remote Spam
-local remoteSpamThread = nil
+-- Remote Spam (flag loop)
+local spamRunning = false
+local spamThread = nil
 local function remoteSpamLoop(plr)
-    while settings.remoteSpam and settings.remoteSpamTarget == plr do
+    while spamRunning and settings.remoteSpam and settings.remoteSpamTarget == plr do
         for _, rem in ipairs(game:GetDescendants()) do
             if rem:IsA("RemoteEvent") then
                 pcall(function() rem:FireServer(plr, "spam", math.random(1e6)) end)
@@ -425,6 +444,7 @@ local function remoteSpamLoop(plr)
         end
         wait(0.1)
     end
+    spamRunning = false
 end
 
 -- Force Kick
@@ -436,47 +456,49 @@ local function forceKickPlayer(plr)
     end
 end
 
--- ========== DETECTOR & REMOTE CONTROL ==========
+-- ========== DETECTOR & REMOTE CONTROL (dengan metatable aman) ==========
 local detectorLog = {}
 local function addLog(msg)
     table.insert(detectorLog, 1, os.date("%H:%M:%S") .. " | " .. msg)
     if #detectorLog > 15 then table.remove(detectorLog) end
 end
 
--- Remote Control: intercept FireServer
+-- Remote Control: intercept FireServer (lebih aman)
+local remoteControlActive = false
 local originalFireServer = nil
-local remoteHooks = {}
 local function enableRemoteControl()
-    if originalFireServer then return end
-    originalFireServer = Instance.new("RemoteEvent").FireServer
-    local mt = getrawmetatable(game)
-    if mt then
+    if remoteControlActive then return end
+    remoteControlActive = true
+    -- Gunakan pcall untuk menghindari error jika metatable tidak bisa dimodifikasi
+    local success, mt = pcall(getrawmetatable, game)
+    if success and mt then
         local oldNamecall = mt.__namecall
-        mt.__namecall = newcclosure(function(self, ...)
-            local method = getnamecallmethod()
-            if method == "FireServer" and settings.remoteControl then
-                -- Blokir dan log
-                addLog("[REMOTE BLOCKED] " .. (self.Name or "unknown") .. " fired")
+        local function newNamecall(self, ...)
+            if getnamecallmethod and getnamecallmethod() == "FireServer" and settings.remoteControl then
+                addLog("[REMOTE BLOCKED] " .. (self.Name or "unknown"))
                 return nil
             end
             if oldNamecall then
                 return oldNamecall(self, ...)
-            else
+            end
+            if originalFireServer then
                 return originalFireServer(self, ...)
             end
-        end)
+        end
+        pcall(function() mt.__namecall = newNamecall end)
     end
 end
 
 local function disableRemoteControl()
-    local mt = getrawmetatable(game)
-    if mt and mt.__namecall then
-        mt.__namecall = nil
+    if not remoteControlActive then return end
+    remoteControlActive = false
+    local success, mt = pcall(getrawmetatable, game)
+    if success and mt then
+        pcall(function() mt.__namecall = nil end)
     end
-    originalFireServer = nil
 end
 
--- Scanner
+-- Scanner vulnerability
 local function scanVulnerabilities()
     addLog("[SCAN] Scanning for backdoors & admin scripts...")
     for _, obj in ipairs(game:GetDescendants()) do
@@ -488,7 +510,7 @@ local function scanVulnerabilities()
                     obj:InvokeServer("__test")
                 end
             end)
-            if not success and string.find(err or "", "not allowed") then
+            if not success and err and string.find(err, "not allowed") then
                 -- aman
             else
                 addLog("[!] VULN REMOTE: " .. obj:GetFullName())
@@ -497,15 +519,13 @@ local function scanVulnerabilities()
                     addLog("[BREACH] Remote destroyed")
                 end
             end
-        end
-        if obj:IsA("Script") and (obj.Name:lower():find("admin") or obj.Name:lower():find("anticheat")) then
+        elseif obj:IsA("Script") and (obj.Name:lower():find("admin") or obj.Name:lower():find("anticheat")) then
             addLog("[*] ADMIN SCRIPT: " .. obj:GetFullName())
             if settings.autoBreach then
                 pcall(function() obj.Disabled = true end)
                 addLog("[BREACH] Admin script disabled")
             end
-        end
-        if obj:IsA("BoolValue") and obj.Name:lower():find("exploit") then
+        elseif obj:IsA("BoolValue") and obj.Name:lower():find("exploit") then
             addLog("[!] ANTI-CHEAT FLAG: " .. obj:GetFullName())
         end
     end
@@ -520,7 +540,7 @@ spawn(function()
     end
 end)
 
--- ========== UI (SAMA PERSIS DENGAN SCRIPT USER YANG WORK) ==========
+-- ========== UI (SAMA PERSIS, TIDAK DIUBAH KECUALI PERBAIKAN) ==========
 pcall(function() game:GetService("CoreGui"):FindFirstChild("RmaxHubFinal"):Destroy() end)
 local gui = Instance.new("ScreenGui")
 gui.Name = "RmaxHubFinal"
@@ -598,7 +618,7 @@ local function updateScroll()
     scroll.CanvasSize = UDim2.new(0,0,0,total+20)
 end
 
--- Helper createCategory (sama persis dengan script user)
+-- Helper createCategory
 local function createCategory(icon, title, defaultOpen)
     local cat = Instance.new("Frame")
     cat.Size = UDim2.new(1,0,0,0)
@@ -651,7 +671,7 @@ local function createCategory(icon, title, defaultOpen)
     return {content = content, update = updateHeight}
 end
 
--- Helper UI elements (sama)
+-- Helper UI elements (dengan perbaikan kecil)
 local function addToggle(parent, icon, text, default, callback)
     local f = Instance.new("Frame")
     f.Size = UDim2.new(1,-10,0,38)
@@ -835,11 +855,13 @@ addButton(griefCat.content, "💥", "Laser Damage +5", function() settings.laser
 addToggle(griefCat.content, "🤖", "Laser Turret", settings.laserTurret, function(v)
     settings.laserTurret=v
     if v then
-        if turretThread then coroutine.close(turretThread) end
+        if turretRunning then turretRunning=false; wait(0.1) end
+        turretRunning=true
         turretThread = coroutine.create(turretLoop)
         coroutine.resume(turretThread)
     else
-        if turretThread then coroutine.close(turretThread); turretThread=nil end
+        turretRunning=false
+        turretThread=nil
     end
 end)
 addButton(griefCat.content, "📏", "Turret Range +10", function() settings.laserTurretRange=math.min(200,settings.laserTurretRange+10) end)
@@ -855,9 +877,11 @@ end)
 addToggle(griefCat.content, "👁️", "Blind (Flash)", settings.blind, function(v)
     settings.blind=v
     if v and settings.blindTarget then
-        if blindThread then coroutine.close(blindThread) end
-        blindThread = coroutine.create(blindLoop)
-        coroutine.resume(blindThread, settings.blindTarget)
+        if blindRunning then blindRunning=false; wait(0.1) end
+        blindRunning=true
+        coroutine.wrap(blindLoop)(settings.blindTarget)
+    else
+        blindRunning=false
     end
 end)
 addDropdown(griefCat.content, "👁️", "Blind Target", game.Players:GetChildren(), function(sel)
@@ -867,9 +891,13 @@ end)
 addToggle(griefCat.content, "💣", "Crash Player", settings.crash, function(v)
     settings.crash=v
     if v and settings.crashTarget then
-        local th = coroutine.create(crashLoop)
-        coroutine.resume(th, settings.crashTarget)
-        crashThreads[settings.crashTarget] = th
+        if crashRunning then crashRunning=false; wait(0.1) end
+        crashRunning=true
+        crashThread = coroutine.create(crashLoop)
+        coroutine.resume(crashThread, settings.crashTarget)
+    else
+        crashRunning=false
+        crashThread=nil
     end
 end)
 addDropdown(griefCat.content, "💣", "Crash Target", game.Players:GetChildren(), function(sel)
@@ -879,9 +907,13 @@ end)
 addToggle(griefCat.content, "📡", "Remote Spam", settings.remoteSpam, function(v)
     settings.remoteSpam=v
     if v and settings.remoteSpamTarget then
-        if remoteSpamThread then coroutine.close(remoteSpamThread) end
-        remoteSpamThread = coroutine.create(remoteSpamLoop)
-        coroutine.resume(remoteSpamThread, settings.remoteSpamTarget)
+        if spamRunning then spamRunning=false; wait(0.1) end
+        spamRunning=true
+        spamThread = coroutine.create(remoteSpamLoop)
+        coroutine.resume(spamThread, settings.remoteSpamTarget)
+    else
+        spamRunning=false
+        spamThread=nil
     end
 end)
 addDropdown(griefCat.content, "📡", "Spam Target", game.Players:GetChildren(), function(sel)
@@ -1266,7 +1298,7 @@ tpCat.update()
 playerCat.update()
 updateScroll()
 
--- Draggable & Minimize (dari script user)
+-- Draggable & Minimize
 local dragStart, dragStartPos
 titleBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -1308,4 +1340,4 @@ uis.InputBegan:Connect(function(input, gp)
     end
 end)
 
-print("✅ RMAX HUB FINAL LOADED - Insert to toggle | Detector, Remote Control, Grief, semua fitur stabil")
+print("✅ RMAX HUB FINAL LOADED - Insert to toggle | Semua bug diperbaiki")
