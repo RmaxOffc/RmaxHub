@@ -1,4 +1,4 @@
--- RMAX HUB - FINAL (Auto CP untuk HUAA OBSTACLE)
+-- RMAX HUB - FINAL (Auto CP Delay + Lobby untuk HUAA OBSTACLE)
 local player = game.Players.LocalPlayer
 local mouse = player:GetMouse()
 local runService = game:GetService("RunService")
@@ -228,7 +228,7 @@ local function bringPlayer(targetPlayer)
 end
 
 -- ========== FITUR AUTO CP (KHUSUS HUAA OBSTACLE) ==========
-local isHuaaMap = (game.PlaceId == 89054581105142) or (game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name:find("HUAA OBSTACLE"))
+local isHuaaMap = (game.PlaceId == 89054581105142) or (pcall(function() return game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name:find("HUAA OBSTACLE") end) and true or false)
 local cpList = {
     {index=1, pos=Vector3.new(-139.9, 139.3, 153.6)},
     {index=2, pos=Vector3.new(-545.1, 185.2, 451.0)},
@@ -251,45 +251,52 @@ local cpList = {
     {index=19, pos=Vector3.new(-1044.9, 3016.7, 6255.0)},
     {index=20, pos=Vector3.new(-1102.8, 3268.7, 5502.8)},
     {index=21, pos=Vector3.new(-1045.3, 3556.7, 4002.9)},
-    {index=22, pos=Vector3.new(-1650.2, 4492.7, 2626.6)}, -- ada 22 CP? dari data ada 22 baris
+    {index=22, pos=Vector3.new(-1650.2, 4492.7, 2626.6)},
 }
+local lobbyPos = Vector3.new(351.3, 149.3, 109.8)
+
 local currentCpIndex = 1
-local autoCpActive = false
-local autoCpConnection
+local autoRunning = false
+local autoThread = nil
 
 local function teleportToCp(index)
     local cp = cpList[index]
     if cp then
         teleportToPosition(cp.pos)
+        currentCpIndex = index
     end
 end
 
-local function nextCp()
-    currentCpIndex = currentCpIndex + 1
-    if currentCpIndex > #cpList then currentCpIndex = 1 end
-    teleportToCp(currentCpIndex)
+local function goToLobby()
+    teleportToPosition(lobbyPos)
 end
 
-local function startAutoCp()
-    if autoCpConnection then return end
-    autoCpActive = true
-    autoCpConnection = runService.Heartbeat:Connect(function()
-        if not autoCpActive then
-            if autoCpConnection then autoCpConnection:Disconnect() end
-            autoCpConnection = nil
-            return
+local function startAutoCp(delaySec)
+    if autoRunning then return end
+    autoRunning = true
+    autoThread = coroutine.create(function()
+        for i=1, #cpList do
+            if not autoRunning then break end
+            teleportToCp(i)
+            if i < #cpList then
+                local start = tick()
+                while tick() - start < delaySec and autoRunning do
+                    wait(0.1)
+                end
+            end
         end
-        -- bisa ditambah delay atau tombol manual? lebih baik manual next, tapi user minta auto?
-        -- Saya buat auto loop dengan interval 0.5 detik, tapi lebih aman manual next via tombol
-        -- Karena permintaan "auto cp sistem teleport", saya buat auto next setiap 1 detik? nanti malah jadi spam.
-        -- Saya tafsirkan: user ingin tekan tombol "Auto Next CP" yang akan teleport ke CP berikutnya secara manual, tidak otomatis loop.
-        -- Saya buat toggle: jika diaktifkan, akan teleport otomatis ke CP berikutnya setiap 1.5 detik.
-        -- Biar lebih fleksibel: tambahkan toggle "Auto Loop CP" dengan interval slider.
+        autoRunning = false
+        autoThread = nil
     end)
+    coroutine.resume(autoThread)
 end
 
--- Saya gunakan sistem manual next dengan tombol "Auto Next CP" (satu kali tekan = pindah ke CP berikutnya)
--- Karena lebih aman dan tidak mencurigakan.
+local function stopAutoCp()
+    autoRunning = false
+    if autoThread then
+        autoThread = nil
+    end
+end
 
 -- ========== UI UNTUK DELTA ==========
 pcall(function() game:GetService("CoreGui"):FindFirstChild("RmaxHubDelta"):Destroy() end)
@@ -303,8 +310,8 @@ screenGui.Name = "RmaxHubDelta"
 screenGui.Parent = guiParent
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 440, 0, 680)
-mainFrame.Position = UDim2.new(0.5, -220, 0.5, -340)
+mainFrame.Size = UDim2.new(0, 440, 0, 720)
+mainFrame.Position = UDim2.new(0.5, -220, 0.5, -360)
 mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 40)
 mainFrame.BackgroundTransparency = 0.1
 mainFrame.BorderSizePixel = 0
@@ -364,7 +371,7 @@ layout.Padding = UDim.new(0, 8)
 layout.SortOrder = Enum.SortOrder.LayoutOrder
 layout.Parent = container
 
--- Helper: Toggle
+-- Helper functions for UI
 local function addToggle(icon, text, default, callback)
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(1, 0, 0, 42)
@@ -404,7 +411,6 @@ local function addToggle(icon, text, default, callback)
     return frame
 end
 
--- Helper: Stepper
 local function addStepper(icon, text, minv, maxv, default, step, callback)
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(1, 0, 0, 52)
@@ -468,7 +474,6 @@ local function addStepper(icon, text, minv, maxv, default, step, callback)
     return frame
 end
 
--- Helper: Button
 local function addButton(icon, text, callback)
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(1, 0, 0, 40)
@@ -751,9 +756,61 @@ if isHuaaMap then
     cpTitle.TextSize = 16
     cpTitle.Parent = container
     
-    -- Tombol Next CP
+    -- Tombol Lobby
+    addButton("🏠", "TP to Lobby", function()
+        goToLobby()
+    end)
+    
+    -- Tombol Next CP (manual)
     addButton("⏩", "Next CP (Manual)", function()
-        nextCp()
+        local nextIdx = currentCpIndex % #cpList + 1
+        teleportToCp(nextIdx)
+    end)
+    
+    -- Tombol Auto Run dengan delay 2 detik
+    local autoBtnFrame = Instance.new("Frame")
+    autoBtnFrame.Size = UDim2.new(1, 0, 0, 40)
+    autoBtnFrame.BackgroundTransparency = 1
+    autoBtnFrame.Parent = container
+    
+    local autoBtn = Instance.new("TextButton")
+    autoBtn.Size = UDim2.new(0.8, 0, 0, 32)
+    autoBtn.Position = UDim2.new(0.1, 0, 0, 4)
+    autoBtn.Text = "▶ Auto Run CP (Delay 2s)"
+    autoBtn.BackgroundColor3 = Color3.fromRGB(60,100,60)
+    autoBtn.TextColor3 = Color3.new(1,1,1)
+    autoBtn.Font = Enum.Font.GothamBold
+    autoBtn.TextSize = 14
+    local autoCorner = Instance.new("UICorner")
+    autoCorner.CornerRadius = UDim.new(0, 6)
+    autoCorner.Parent = autoBtn
+    autoBtn.Parent = autoBtnFrame
+    
+    local stopBtn = Instance.new("TextButton")
+    stopBtn.Size = UDim2.new(0.8, 0, 0, 32)
+    stopBtn.Position = UDim2.new(0.1, 0, 0, 4)
+    stopBtn.Text = "⏹ Stop Auto"
+    stopBtn.BackgroundColor3 = Color3.fromRGB(120,60,60)
+    stopBtn.TextColor3 = Color3.new(1,1,1)
+    stopBtn.Font = Enum.Font.GothamBold
+    stopBtn.TextSize = 14
+    local stopCorner = Instance.new("UICorner")
+    stopCorner.CornerRadius = UDim.new(0, 6)
+    stopCorner.Parent = stopBtn
+    stopBtn.Visible = false
+    stopBtn.Parent = autoBtnFrame
+    
+    autoBtn.MouseButton1Click:Connect(function()
+        if autoRunning then return end
+        autoBtn.Visible = false
+        stopBtn.Visible = true
+        startAutoCp(2) -- delay 2 detik
+    end)
+    
+    stopBtn.MouseButton1Click:Connect(function()
+        stopAutoCp()
+        autoBtn.Visible = true
+        stopBtn.Visible = false
     end)
     
     -- Daftar semua CP (scrollable)
@@ -883,7 +940,7 @@ minimizeBtn.MouseButton1Click:Connect(function()
         scroll.Visible = false
         mainFrame:TweenSize(UDim2.new(0, 440, 0, 40), "Out", "Quad", 0.2, true)
     else
-        mainFrame:TweenSize(UDim2.new(0, 440, 0, 680), "Out", "Quad", 0.2, true)
+        mainFrame:TweenSize(UDim2.new(0, 440, 0, 720), "Out", "Quad", 0.2, true)
         wait(0.2)
         scroll.Visible = true
         updateMainScroll()
@@ -898,4 +955,4 @@ uis.InputBegan:Connect(function(input, gp)
     end
 end)
 
-print("✅ RMAX HUB + AUTO CP (HUAA) LOADED - Insert to toggle")
+print("✅ RMAX HUB + AUTO CP DELAY + LOBBY LOADED - Insert to toggle")
