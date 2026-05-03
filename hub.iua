@@ -1,7 +1,7 @@
 --[[
-    RMAX HUB - Ultimate Cheat
-    Fitur: Speed, Jump, Infinite Jump, Fly, God Mode, Kill Aura, Aimbot, ESP, Auto Farm
-    UI Modern, Drag, Minimize, No Bug
+    RMAX HUB - SIMPLE UI (NO OVERLAP)
+    Fitur: Fly ON/OFF, Speed, Jump, Infinite Jump, God Mode, Kill Aura, Aimbot, ESP, Auto Farm
+    UI menggunakan UIListLayout, tidak ada tumpukan.
 --]]
 
 local player = game.Players.LocalPlayer
@@ -95,10 +95,9 @@ local function applyGodMode()
     if not settings.godmode then return end
     local char = player.Character
     if char and char:FindFirstChild("Humanoid") then
-        local hum = char.Humanoid
-        hum.Health = math.huge
-        hum.MaxHealth = math.huge
-        hum.BreakJointsOnDeath = false
+        char.Humanoid.Health = math.huge
+        char.Humanoid.MaxHealth = math.huge
+        char.Humanoid.BreakJointsOnDeath = false
     end
 end
 player.CharacterAdded:Connect(applyGodMode)
@@ -149,7 +148,7 @@ runService.RenderStepped:Connect(function()
     end
 end)
 
--- ========== ESP SYSTEM ==========
+-- ========== ESP ==========
 local espObjects = {}
 local function clearESP()
     for _, obj in pairs(espObjects) do
@@ -260,40 +259,40 @@ local function startFarm()
     end)
 end
 
--- ========== UI RMAX HUB (MODERN, NO BUG) ==========
+-- ========== UI SEDERHANA DENGAN UIListLayout (TIDAK TUMPUK) ==========
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "RmaxHub"
 screenGui.Parent = game.CoreGui
-screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 520, 0, 460)
-mainFrame.Position = UDim2.new(0.5, -260, 0.5, -230)
-mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+mainFrame.Size = UDim2.new(0, 320, 0, 500)
+mainFrame.Position = UDim2.new(0.5, -160, 0.5, -250)
+mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
 mainFrame.BackgroundTransparency = 0.1
 mainFrame.BorderSizePixel = 0
 mainFrame.ClipsDescendants = true
 mainFrame.Parent = screenGui
 
-local mainCorner = Instance.new("UICorner")
-mainCorner.CornerRadius = UDim.new(0, 12)
-mainCorner.Parent = mainFrame
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 10)
+corner.Parent = mainFrame
 
+-- Title bar
 local titleBar = Instance.new("Frame")
-titleBar.Size = UDim2.new(1, 0, 0, 45)
-titleBar.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+titleBar.Size = UDim2.new(1, 0, 0, 40)
+titleBar.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
 titleBar.BackgroundTransparency = 0.1
 titleBar.BorderSizePixel = 0
 titleBar.Parent = mainFrame
 local titleCorner = Instance.new("UICorner")
-titleCorner.CornerRadius = UDim.new(0, 12)
+titleCorner.CornerRadius = UDim.new(0, 10)
 titleCorner.Parent = titleBar
 
 local titleText = Instance.new("TextLabel")
-titleText.Size = UDim2.new(1, -60, 1, 0)
-titleText.Position = UDim2.new(0, 15, 0, 0)
+titleText.Size = UDim2.new(1, -50, 1, 0)
+titleText.Position = UDim2.new(0, 10, 0, 0)
 titleText.BackgroundTransparency = 1
-titleText.Text = "RMAX HUB | DRAG"
+titleText.Text = "RMAX HUB"
 titleText.TextColor3 = Color3.fromRGB(0, 255, 255)
 titleText.TextXAlignment = Enum.TextXAlignment.Left
 titleText.Font = Enum.Font.GothamBold
@@ -301,58 +300,47 @@ titleText.TextSize = 18
 titleText.Parent = titleBar
 
 local minimizeBtn = Instance.new("TextButton")
-minimizeBtn.Size = UDim2.new(0, 35, 0, 35)
-minimizeBtn.Position = UDim2.new(1, -45, 0, 5)
+minimizeBtn.Size = UDim2.new(0, 30, 0, 30)
+minimizeBtn.Position = UDim2.new(1, -40, 0, 5)
 minimizeBtn.BackgroundTransparency = 1
 minimizeBtn.Text = "−"
-minimizeBtn.TextColor3 = Color3.new(1, 1, 1)
-minimizeBtn.TextSize = 28
+minimizeBtn.TextColor3 = Color3.new(1,1,1)
+minimizeBtn.TextSize = 24
 minimizeBtn.Parent = titleBar
 
-local tabContainer = Instance.new("Frame")
-tabContainer.Size = UDim2.new(1, 0, 0, 45)
-tabContainer.Position = UDim2.new(0, 0, 0, 45)
-tabContainer.BackgroundTransparency = 1
-tabContainer.Parent = mainFrame
+-- ScrollingFrame untuk konten
+local scrollFrame = Instance.new("ScrollingFrame")
+scrollFrame.Size = UDim2.new(1, 0, 1, -40)
+scrollFrame.Position = UDim2.new(0, 0, 0, 40)
+scrollFrame.BackgroundTransparency = 1
+scrollFrame.BorderSizePixel = 0
+scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+scrollFrame.ScrollBarThickness = 5
+scrollFrame.Parent = mainFrame
 
-local tabs = {"Movement", "Combat", "Visual", "Farm"}
-local tabBtns = {}
-local contents = {}
+local contentList = Instance.new("Frame")
+contentList.Size = UDim2.new(1, 0, 0, 0)
+contentList.BackgroundTransparency = 1
+contentList.Parent = scrollFrame
+scrollFrame.CanvasPosition = Vector2.new(0, 0)
 
-for i, name in ipairs(tabs) do
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0.25, 0, 1, 0)
-    btn.BackgroundTransparency = 0.85
-    btn.Text = name
-    btn.TextColor3 = Color3.fromRGB(200, 200, 200)
-    btn.Font = Enum.Font.GothamSemibold
-    btn.TextSize = 15
-    btn.Parent = tabContainer
-    tabBtns[i] = btn
-    
-    local content = Instance.new("ScrollingFrame")
-    content.Size = UDim2.new(1, -20, 1, -100)
-    content.Position = UDim2.new(0, 10, 0, 100)
-    content.BackgroundTransparency = 1
-    content.BorderSizePixel = 0
-    content.CanvasSize = UDim2.new(0, 0, 0, 0)
-    content.ScrollBarThickness = 5
-    content.Visible = (i == 1)
-    content.Parent = mainFrame
-    contents[i] = content
-end
+-- UIListLayout otomatis menata vertikal
+local layout = Instance.new("UIListLayout")
+layout.Padding = UDim.new(0, 8)
+layout.SortOrder = Enum.SortOrder.LayoutOrder
+layout.Parent = contentList
 
--- Helper: Toggle
-local function addToggle(parent, text, default, callback)
+-- Fungsi untuk menambahkan toggle
+local function addToggle(text, default, callback)
     local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, -10, 0, 40)
+    frame.Size = UDim2.new(1, -20, 0, 40)
     frame.BackgroundTransparency = 1
-    frame.Parent = parent
+    frame.Parent = contentList
     
     local label = Instance.new("TextLabel")
     label.Size = UDim2.new(0.7, 0, 1, 0)
     label.Text = text
-    label.TextColor3 = Color3.new(1, 1, 1)
+    label.TextColor3 = Color3.new(1,1,1)
     label.BackgroundTransparency = 1
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.Font = Enum.Font.Gotham
@@ -364,11 +352,11 @@ local function addToggle(parent, text, default, callback)
     btn.Position = UDim2.new(1, -80, 0, 5)
     btn.BackgroundColor3 = default and Color3.fromRGB(0, 200, 255) or Color3.fromRGB(80, 80, 100)
     btn.Text = default and "ON" or "OFF"
-    btn.TextColor3 = Color3.new(0, 0, 0)
+    btn.TextColor3 = Color3.new(0,0,0)
     btn.TextSize = 13
     btn.Font = Enum.Font.GothamBold
     local btnCorner = Instance.new("UICorner")
-    btnCorner.CornerRadius = UDim.new(1, 0)
+    btnCorner.CornerRadius = UDim.new(1,0)
     btnCorner.Parent = btn
     btn.Parent = frame
     
@@ -379,19 +367,20 @@ local function addToggle(parent, text, default, callback)
         btn.Text = state and "ON" or "OFF"
         callback(state)
     end)
+    return frame
 end
 
--- Helper: Slider
-local function addSlider(parent, text, minv, maxv, default, callback)
+-- Fungsi untuk menambahkan slider
+local function addSlider(text, minv, maxv, default, callback)
     local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, -10, 0, 55)
+    frame.Size = UDim2.new(1, -20, 0, 55)
     frame.BackgroundTransparency = 1
-    frame.Parent = parent
+    frame.Parent = contentList
     
     local label = Instance.new("TextLabel")
     label.Size = UDim2.new(1, 0, 0, 22)
     label.Text = text .. ": " .. math.floor(default)
-    label.TextColor3 = Color3.new(1, 1, 1)
+    label.TextColor3 = Color3.new(1,1,1)
     label.BackgroundTransparency = 1
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.Font = Enum.Font.Gotham
@@ -399,13 +388,13 @@ local function addSlider(parent, text, minv, maxv, default, callback)
     label.Parent = frame
     
     local sliderBg = Instance.new("Frame")
-    sliderBg.Size = UDim2.new(0.9, 0, 0, 6)
+    sliderBg.Size = UDim2.new(1, 0, 0, 6)
     sliderBg.Position = UDim2.new(0, 0, 0, 32)
     sliderBg.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
     sliderBg.BorderSizePixel = 0
     sliderBg.Parent = frame
     local bgCorner = Instance.new("UICorner")
-    bgCorner.CornerRadius = UDim.new(1, 0)
+    bgCorner.CornerRadius = UDim.new(1,0)
     bgCorner.Parent = sliderBg
     
     local fill = Instance.new("Frame")
@@ -415,7 +404,7 @@ local function addSlider(parent, text, minv, maxv, default, callback)
     fill.BorderSizePixel = 0
     fill.Parent = sliderBg
     local fillCorner = Instance.new("UICorner")
-    fillCorner.CornerRadius = UDim.new(1, 0)
+    fillCorner.CornerRadius = UDim.new(1,0)
     fillCorner.Parent = fill
     
     local val = default
@@ -444,38 +433,25 @@ local function addSlider(parent, text, minv, maxv, default, callback)
             end)
         end
     end)
+    return frame
 end
 
--- ========== POPULATE TABS ==========
--- Movement
-addSlider(contents[1], "Walk Speed", 16, 500, settings.walkspeed, function(v)
-    settings.walkspeed = v
-    updateChar()
-end)
-addSlider(contents[1], "Jump Power", 30, 200, settings.jumppower, function(v)
-    settings.jumppower = v
-    updateChar()
-end)
-addToggle(contents[1], "Infinite Jump", settings.infinitejump, function(v) settings.infinitejump = v end)
-addToggle(contents[1], "Fly (WASD+Space/CTRL)", settings.fly, function(v)
-    settings.fly = v
-    if v then startFly() else stopFly() end
-end)
-
--- Combat
-addToggle(contents[2], "God Mode", settings.godmode, function(v) settings.godmode = v; if v then applyGodMode() end end)
-addToggle(contents[2], "Kill Aura", settings.killaura, function(v) settings.killaura = v end)
-addSlider(contents[2], "Kill Aura Range", 10, 100, settings.killaurarange, function(v) settings.killaurarange = v end)
-addToggle(contents[2], "Aimbot", settings.aimbot, function(v) settings.aimbot = v end)
-
--- Visual
-addToggle(contents[3], "ESP (Wallhack)", settings.esp, function(v) settings.esp = v end)
-addSlider(contents[3], "ESP Distance", 100, 1000, settings.espdistance, function(v) settings.espdistance = v end)
--- Color picker sederhana
+-- Buat semua kontrol
+addToggle("Fly (WASD+Space/CTRL)", settings.fly, function(v) settings.fly = v; if v then startFly() else stopFly() end end)
+addSlider("Walk Speed", 16, 500, settings.walkspeed, function(v) settings.walkspeed = v; updateChar() end)
+addSlider("Jump Power", 30, 200, settings.jumppower, function(v) settings.jumppower = v; updateChar() end)
+addToggle("Infinite Jump", settings.infinitejump, function(v) settings.infinitejump = v end)
+addToggle("God Mode", settings.godmode, function(v) settings.godmode = v; if v then applyGodMode() end end)
+addToggle("Kill Aura", settings.killaura, function(v) settings.killaura = v end)
+addSlider("Kill Aura Range", 10, 100, settings.killaurarange, function(v) settings.killaurarange = v end)
+addToggle("Aimbot", settings.aimbot, function(v) settings.aimbot = v end)
+addToggle("ESP (Wallhack)", settings.esp, function(v) settings.esp = v end)
+addSlider("ESP Distance", 100, 1000, settings.espdistance, function(v) settings.espdistance = v end)
+-- Color picker sederhana untuk ESP
 local colorFrame = Instance.new("Frame")
-colorFrame.Size = UDim2.new(1, -10, 0, 45)
+colorFrame.Size = UDim2.new(1, -20, 0, 45)
 colorFrame.BackgroundTransparency = 1
-colorFrame.Parent = contents[3]
+colorFrame.Parent = contentList
 local colorLabel = Instance.new("TextLabel")
 colorLabel.Size = UDim2.new(0.6, 0, 1, 0)
 colorLabel.Text = "ESP Color"
@@ -505,33 +481,24 @@ colorBtn.MouseButton1Click:Connect(function()
         pcall(function() data.highlight.FillColor = newColor end)
     end
 end)
+addToggle("Auto Farm (Coin/Gem)", settings.autofarm, function(v) settings.autofarm = v; if v then startFarm() else stopFarm() end end)
 
--- Farm
-addToggle(contents[4], "Auto Farm (Coin/Gem)", settings.autofarm, function(v)
-    settings.autofarm = v
-    if v then startFarm() else stopFarm() end
-end)
-
--- Tab switching
-local function selectTab(idx)
-    for i = 1, #tabs do
-        if i == idx then
-            tabBtns[i].BackgroundTransparency = 0.3
-            tabBtns[i].TextColor3 = Color3.fromRGB(0, 200, 255)
-            contents[i].Visible = true
-        else
-            tabBtns[i].BackgroundTransparency = 0.85
-            tabBtns[i].TextColor3 = Color3.fromRGB(200, 200, 200)
-            contents[i].Visible = false
+-- Update canvas size setelah semua elemen ditambahkan
+local function updateCanvasSize()
+    local totalHeight = 0
+    for _, child in ipairs(contentList:GetChildren()) do
+        if child:IsA("Frame") then
+            totalHeight = totalHeight + child.Size.Y.Offset + layout.Padding.Offset
         end
     end
+    contentList.Size = UDim2.new(1, 0, 0, totalHeight)
+    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, totalHeight + 20)
 end
-for i, btn in ipairs(tabBtns) do
-    btn.MouseButton1Click:Connect(function() selectTab(i) end)
-end
-selectTab(1)
+layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateCanvasSize)
+task.wait(0.1)
+updateCanvasSize()
 
--- Dragging
+-- Draggable
 local dragStart, dragStartPos
 titleBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -558,14 +525,12 @@ local minimized = false
 minimizeBtn.MouseButton1Click:Connect(function()
     minimized = not minimized
     if minimized then
-        for _, c in pairs(contents) do c.Visible = false end
-        tabContainer.Visible = false
-        mainFrame:TweenSize(UDim2.new(0, 520, 0, 45), "Out", "Quad", 0.2, true)
+        scrollFrame.Visible = false
+        mainFrame:TweenSize(UDim2.new(0, 320, 0, 40), "Out", "Quad", 0.2, true)
     else
-        mainFrame:TweenSize(UDim2.new(0, 520, 0, 460), "Out", "Quad", 0.2, true)
+        mainFrame:TweenSize(UDim2.new(0, 320, 0, 500), "Out", "Quad", 0.2, true)
         wait(0.2)
-        tabContainer.Visible = true
-        selectTab(1)
+        scrollFrame.Visible = true
     end
 end)
 
