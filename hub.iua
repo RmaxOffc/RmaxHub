@@ -1,9 +1,9 @@
 --[[
-    RMAX HUB - FIXED UI + FITUR LENGKAP
-    - UI PASTI MUNCUL
+    RMAX HUB - FULL FIX (UI PASTI MUNCUL)
     - FLY (WASD + Gamepad analog)
     - STEPPER +/- step 10
     - Logo emoji
+    - Semua fitur berfungsi
 --]]
 
 local player = game.Players.LocalPlayer
@@ -543,7 +543,10 @@ espColorBtn.MouseButton1Click:Connect(function()
     end
 end)
 
+-- Tracer toggle
 addToggle("🧭", "Tracer (Direction Line)", settings.tracer, function(v) settings.tracer = v; if not v then clearTracers() end end)
+
+-- Color picker Tracer
 local tracerColorFrame = Instance.new("Frame")
 tracerColorFrame.Size = UDim2.new(1, -20, 0, 50)
 tracerColorFrame.BackgroundTransparency = 1
@@ -578,9 +581,10 @@ tracerColorBtn.MouseButton1Click:Connect(function()
     end
 end)
 
+-- Auto Farm
 addToggle("🤖", "Auto Farm (Coin/Gem)", settings.autofarm, function(v) settings.autofarm = v; if v then startFarm() else stopFarm() end end)
 
--- Update canvas size setelah layout selesai
+-- Update canvas size
 local function updateCanvasSize()
     local totalHeight = 0
     for _, child in ipairs(contentList:GetChildren()) do
@@ -592,6 +596,7 @@ local function updateCanvasSize()
     scrollFrame.CanvasSize = UDim2.new(0, 0, 0, totalHeight + 30)
     scrollFrame.CanvasPosition = Vector2.new(0, 0)
 end
+
 layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateCanvasSize)
 task.wait(0.2)
 updateCanvasSize()
@@ -633,7 +638,7 @@ minimizeBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Show/hide Insert
+-- Show/hide dengan Insert
 uis.InputBegan:Connect(function(input, gp)
     if gp then return end
     if input.KeyCode == Enum.KeyCode.Insert then
@@ -641,4 +646,4 @@ uis.InputBegan:Connect(function(input, gp)
     end
 end)
 
-print("RMAX HUB SUCCESSFULLY LOADED - Insert to toggle")
+print("RMAX HUB FULLY LOADED - Tekan Insert untuk toggle UI")
