@@ -1,8 +1,15 @@
--- RMAX HUB - Delta Compatible + Air Speed (Fast Infinite Jump)
+-- RMAX HUB - COMPLETE EDITION (Teleport + Coords + Cheats)
 local player = game.Players.LocalPlayer
 local mouse = player:GetMouse()
 local runService = game:GetService("RunService")
 local uis = game:GetService("UserInputService")
+
+-- Clipboard fallback
+local function copyToClipboard(text)
+    pcall(function()
+        setclipboard(text)
+    end)
+end
 
 -- ========== DETEKSI GAMEPAD ==========
 local hasGamepad = false
@@ -21,7 +28,7 @@ local settings = {
     walkspeed = 100,
     jumppower = 50,
     infinitejump = false,
-    airspeed = 200,        -- kecepatan saat infinite jump aktif di udara
+    airspeed = 200,
     fly = false,
     godmode = false,
     killaura = false,
@@ -29,6 +36,15 @@ local settings = {
     aimbot = false,
     autofarm = false,
 }
+
+-- ========== SAVED COORDINATES ==========
+local savedCoords = {}  -- max 5 slots
+local function saveCoord(slot, pos)
+    savedCoords[slot] = {X = pos.X, Y = pos.Y, Z = pos.Z}
+end
+local function getCoord(slot)
+    return savedCoords[slot]
+end
 
 -- ========== FLY SYSTEM ==========
 local bodyVel, bodyGyro, flyConn
@@ -80,7 +96,7 @@ local function startFly()
     end)
 end
 
--- ========== INFINITE JUMP (dengan fast air speed) ==========
+-- ========== INFINITE JUMP + AIR SPEED ==========
 uis.JumpRequest:Connect(function()
     if settings.infinitejump then
         local char = player.Character
@@ -94,17 +110,12 @@ uis.JumpRequest:Connect(function()
     end
 end)
 
--- ========== UPDATE SPEED & JUMP + AIR SPEED ==========
 local function updateChar()
     local char = player.Character
     if not char then return end
     local hum = char:FindFirstChild("Humanoid")
     if not hum then return end
-    
-    -- Set jump power (selalu)
     hum.JumpPower = settings.jumppower
-    
-    -- Logika kecepatan: jika infinite jump aktif dan karakter di udara -> pakai airspeed, else walkspeed
     if settings.infinitejump then
         local state = hum:GetState()
         if state == Enum.HumanoidStateType.Jumping or state == Enum.HumanoidStateType.Freefall then
@@ -201,6 +212,28 @@ local function startFarm()
     end)
 end
 
+-- ========== TELEPORT FUNCTIONS ==========
+local function teleportToPosition(pos)
+    local char = player.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        char.HumanoidRootPart.CFrame = CFrame.new(pos.X, pos.Y, pos.Z)
+    end
+end
+
+local function teleportToPlayer(targetPlayer)
+    if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local pos = targetPlayer.Character.HumanoidRootPart.Position
+        teleportToPosition(pos)
+    end
+end
+
+local function bringPlayer(targetPlayer)
+    if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local myPos = player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character.HumanoidRootPart.Position or Vector3.new(0,0,0)
+        targetPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(myPos)
+    end
+end
+
 -- ========== UI UNTUK DELTA ==========
 pcall(function() game:GetService("CoreGui"):FindFirstChild("RmaxHubDelta"):Destroy() end)
 pcall(function() player.PlayerGui:FindFirstChild("RmaxHubDelta"):Destroy() end)
@@ -213,8 +246,8 @@ screenGui.Name = "RmaxHubDelta"
 screenGui.Parent = guiParent
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 380, 0, 560)
-mainFrame.Position = UDim2.new(0.5, -190, 0.5, -280)
+mainFrame.Size = UDim2.new(0, 420, 0, 620)
+mainFrame.Position = UDim2.new(0.5, -210, 0.5, -310)
 mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 40)
 mainFrame.BackgroundTransparency = 0.1
 mainFrame.BorderSizePixel = 0
@@ -314,7 +347,7 @@ local function addToggle(icon, text, default, callback)
     return frame
 end
 
--- Helper: Stepper (tombol +/-)
+-- Helper: Stepper
 local function addStepper(icon, text, minv, maxv, default, step, callback)
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(1, 0, 0, 52)
@@ -378,19 +411,259 @@ local function addStepper(icon, text, minv, maxv, default, step, callback)
     return frame
 end
 
--- ========== MEMBUAT UI ==========
+-- ========== SECTION CHEATS ==========
 addToggle("🪶", "Fly (WASD + Gamepad)", settings.fly, function(v) settings.fly = v; if v then startFly() else stopFly() end end)
 addStepper("🏃", "Walk Speed (Ground)", 16, 500, settings.walkspeed, 10, function(v) settings.walkspeed = v; updateChar() end)
 addStepper("🦘", "Jump Power", 30, 200, settings.jumppower, 10, function(v) settings.jumppower = v; updateChar() end)
 addToggle("♾️", "Infinite Jump", settings.infinitejump, function(v) settings.infinitejump = v; updateChar() end)
-addStepper("🚀", "Air Speed (when Infinite Jump)", 16, 500, settings.airspeed, 10, function(v) settings.airspeed = v; updateChar() end)
+addStepper("🚀", "Air Speed", 16, 500, settings.airspeed, 10, function(v) settings.airspeed = v; updateChar() end)
 addToggle("🛡️", "God Mode", settings.godmode, function(v) settings.godmode = v; if v then applyGodMode() end end)
 addToggle("⚔️", "Kill Aura", settings.killaura, function(v) settings.killaura = v end)
 addStepper("📏", "Kill Aura Range", 10, 100, settings.killaurarange, 10, function(v) settings.killaurarange = v end)
 addToggle("🎯", "Aimbot", settings.aimbot, function(v) settings.aimbot = v end)
 addToggle("🤖", "Auto Farm (Coin/Gem)", settings.autofarm, function(v) settings.autofarm = v; if v then startFarm() else stopFarm() end end)
 
--- Update scroll height
+-- ========== SEPARATOR ==========
+local sep = Instance.new("Frame")
+sep.Size = UDim2.new(1, 0, 0, 2)
+sep.BackgroundColor3 = Color3.fromRGB(80,80,120)
+sep.Parent = container
+local sepCorner = Instance.new("UICorner")
+sepCorner.CornerRadius = UDim.new(1,0)
+sepCorner.Parent = sep
+
+-- ========== SECTION COORDINATES & TELEPORT ==========
+local coordFrame = Instance.new("Frame")
+coordFrame.Size = UDim2.new(1, 0, 0, 80)
+coordFrame.BackgroundTransparency = 1
+coordFrame.Parent = container
+
+local coordText = Instance.new("TextLabel")
+coordText.Size = UDim2.new(1, 0, 0, 25)
+coordText.Text = "📍 Current Position: X:0 Y:0 Z:0"
+coordText.TextColor3 = Color3.new(1,1,1)
+coordText.BackgroundTransparency = 1
+coordText.Font = Enum.Font.Gotham
+coordText.TextSize = 14
+coordText.Parent = coordFrame
+
+local copyBtn = Instance.new("TextButton")
+copyBtn.Size = UDim2.new(0, 80, 0, 30)
+copyBtn.Position = UDim2.new(0, 0, 0, 30)
+copyBtn.Text = "📋 Copy"
+copyBtn.BackgroundColor3 = Color3.fromRGB(60,60,80)
+copyBtn.TextColor3 = Color3.new(1,1,1)
+copyBtn.Font = Enum.Font.GothamBold
+copyBtn.TextSize = 13
+local copyCorner = Instance.new("UICorner")
+copyCorner.CornerRadius = UDim.new(0, 6)
+copyCorner.Parent = copyBtn
+copyBtn.Parent = coordFrame
+
+-- Update koordinat realtime
+spawn(function()
+    while true do
+        wait(0.1)
+        local char = player.Character
+        if char and char:FindFirstChild("HumanoidRootPart") then
+            local pos = char.HumanoidRootPart.Position
+            coordText.Text = string.format("📍 Current Position: X:%.1f Y:%.1f Z:%.1f", pos.X, pos.Y, pos.Z)
+        end
+    end
+end)
+
+copyBtn.MouseButton1Click:Connect(function()
+    local char = player.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        local pos = char.HumanoidRootPart.Position
+        local str = string.format("%.1f, %.1f, %.1f", pos.X, pos.Y, pos.Z)
+        copyToClipboard(str)
+        copyBtn.Text = "✓ Copied!"
+        wait(1)
+        copyBtn.Text = "📋 Copy"
+    end
+end)
+
+-- Save coordinates (5 slots)
+local saveSlots = {}
+for i = 1, 5 do
+    local slotFrame = Instance.new("Frame")
+    slotFrame.Size = UDim2.new(1, 0, 0, 35)
+    slotFrame.BackgroundTransparency = 1
+    slotFrame.Parent = container
+    
+    local slotLabel = Instance.new("TextLabel")
+    slotLabel.Size = UDim2.new(0.2, 0, 1, 0)
+    slotLabel.Text = "Slot " .. i
+    slotLabel.TextColor3 = Color3.fromRGB(200,200,200)
+    slotLabel.BackgroundTransparency = 1
+    slotLabel.Font = Enum.Font.Gotham
+    slotLabel.TextSize = 13
+    slotLabel.Parent = slotFrame
+    
+    local saveBtn = Instance.new("TextButton")
+    saveBtn.Size = UDim2.new(0, 60, 0, 25)
+    saveBtn.Position = UDim2.new(0.25, 0, 0, 5)
+    saveBtn.Text = "💾 Save"
+    saveBtn.BackgroundColor3 = Color3.fromRGB(60,100,60)
+    saveBtn.TextColor3 = Color3.new(1,1,1)
+    saveBtn.Font = Enum.Font.GothamBold
+    saveBtn.TextSize = 12
+    local saveCorner = Instance.new("UICorner")
+    saveCorner.CornerRadius = UDim.new(0, 4)
+    saveCorner.Parent = saveBtn
+    saveBtn.Parent = slotFrame
+    
+    local tpBtn = Instance.new("TextButton")
+    tpBtn.Size = UDim2.new(0, 60, 0, 25)
+    tpBtn.Position = UDim2.new(0.55, 0, 0, 5)
+    tpBtn.Text = "✨ TP"
+    tpBtn.BackgroundColor3 = Color3.fromRGB(60,60,100)
+    tpBtn.TextColor3 = Color3.new(1,1,1)
+    tpBtn.Font = Enum.Font.GothamBold
+    tpBtn.TextSize = 12
+    local tpCorner = Instance.new("UICorner")
+    tpCorner.CornerRadius = UDim.new(0, 4)
+    tpCorner.Parent = tpBtn
+    tpBtn.Parent = slotFrame
+    
+    local statusLabel = Instance.new("TextLabel")
+    statusLabel.Size = UDim2.new(0.2, 0, 1, 0)
+    statusLabel.Position = UDim2.new(0.78, 0, 0, 0)
+    statusLabel.Text = "Empty"
+    statusLabel.TextColor3 = Color3.fromRGB(150,150,150)
+    statusLabel.BackgroundTransparency = 1
+    statusLabel.Font = Enum.Font.Gotham
+    statusLabel.TextSize = 11
+    statusLabel.Parent = slotFrame
+    
+    saveBtn.MouseButton1Click:Connect(function()
+        local char = player.Character
+        if char and char:FindFirstChild("HumanoidRootPart") then
+            local pos = char.HumanoidRootPart.Position
+            saveCoord(i, pos)
+            statusLabel.Text = string.format("X:%.0f Y:%.0f Z:%.0f", pos.X, pos.Y, pos.Z)
+            statusLabel.TextColor3 = Color3.fromRGB(0,255,0)
+        end
+    end)
+    
+    tpBtn.MouseButton1Click:Connect(function()
+        local coord = getCoord(i)
+        if coord then
+            teleportToPosition(Vector3.new(coord.X, coord.Y, coord.Z))
+        end
+    end)
+end
+
+-- Player list
+local playerListFrame = Instance.new("Frame")
+playerListFrame.Size = UDim2.new(1, 0, 0, 150)
+playerListFrame.BackgroundTransparency = 1
+playerListFrame.Parent = container
+
+local playerListLabel = Instance.new("TextLabel")
+playerListLabel.Size = UDim2.new(1, 0, 0, 25)
+playerListLabel.Text = "👥 Players Online"
+playerListLabel.TextColor3 = Color3.fromRGB(0,255,255)
+playerListLabel.BackgroundTransparency = 1
+playerListLabel.Font = Enum.Font.GothamBold
+playerListLabel.TextSize = 14
+playerListLabel.Parent = playerListFrame
+
+local playerScroll = Instance.new("ScrollingFrame")
+playerScroll.Size = UDim2.new(1, 0, 1, -30)
+playerScroll.Position = UDim2.new(0, 0, 0, 25)
+playerScroll.BackgroundTransparency = 1
+playerScroll.BorderSizePixel = 0
+playerScroll.ScrollBarThickness = 4
+playerScroll.Parent = playerListFrame
+
+local playerContainer = Instance.new("Frame")
+playerContainer.Size = UDim2.new(1, 0, 0, 0)
+playerContainer.BackgroundTransparency = 1
+playerContainer.Parent = playerScroll
+
+local playerLayout = Instance.new("UIListLayout")
+playerLayout.Padding = UDim.new(0, 4)
+playerLayout.SortOrder = Enum.SortOrder.LayoutOrder
+playerLayout.Parent = playerContainer
+
+local function updatePlayerList()
+    for _, child in ipairs(playerContainer:GetChildren()) do
+        if child:IsA("Frame") then
+            child:Destroy()
+        end
+    end
+    local players = game.Players:GetPlayers()
+    for _, plr in ipairs(players) do
+        if plr ~= player then
+            local row = Instance.new("Frame")
+            row.Size = UDim2.new(1, 0, 0, 32)
+            row.BackgroundTransparency = 1
+            row.Parent = playerContainer
+            
+            local nameLabel = Instance.new("TextLabel")
+            nameLabel.Size = UDim2.new(0.4, 0, 1, 0)
+            nameLabel.Text = plr.Name
+            nameLabel.TextColor3 = Color3.new(1,1,1)
+            nameLabel.BackgroundTransparency = 1
+            nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+            nameLabel.Font = Enum.Font.Gotham
+            nameLabel.TextSize = 12
+            nameLabel.Parent = row
+            
+            local tpBtn = Instance.new("TextButton")
+            tpBtn.Size = UDim2.new(0, 70, 0, 24)
+            tpBtn.Position = UDim2.new(0.45, 0, 0, 4)
+            tpBtn.Text = "🚀 TP"
+            tpBtn.BackgroundColor3 = Color3.fromRGB(60,80,120)
+            tpBtn.TextColor3 = Color3.new(1,1,1)
+            tpBtn.Font = Enum.Font.GothamBold
+            tpBtn.TextSize = 11
+            local tpCorner = Instance.new("UICorner")
+            tpCorner.CornerRadius = UDim.new(0, 4)
+            tpCorner.Parent = tpBtn
+            tpBtn.Parent = row
+            
+            local bringBtn = Instance.new("TextButton")
+            bringBtn.Size = UDim2.new(0, 70, 0, 24)
+            bringBtn.Position = UDim2.new(0.7, 0, 0, 4)
+            bringBtn.Text = "📦 Bring"
+            bringBtn.BackgroundColor3 = Color3.fromRGB(120,60,60)
+            bringBtn.TextColor3 = Color3.new(1,1,1)
+            bringBtn.Font = Enum.Font.GothamBold
+            bringBtn.TextSize = 11
+            local bringCorner = Instance.new("UICorner")
+            bringCorner.CornerRadius = UDim.new(0, 4)
+            bringCorner.Parent = bringBtn
+            bringBtn.Parent = row
+            
+            tpBtn.MouseButton1Click:Connect(function()
+                teleportToPlayer(plr)
+            end)
+            bringBtn.MouseButton1Click:Connect(function()
+                bringPlayer(plr)
+            end)
+        end
+    end
+    local total = 0
+    for _, child in ipairs(playerContainer:GetChildren()) do
+        if child:IsA("Frame") then
+            total = total + child.Size.Y.Offset + playerLayout.Padding.Offset
+        end
+    end
+    playerContainer.Size = UDim2.new(1, 0, 0, total)
+    playerScroll.CanvasSize = UDim2.new(0, 0, 0, total + 20)
+end
+
+spawn(function()
+    while true do
+        updatePlayerList()
+        wait(1)
+    end
+end)
+
+-- Update scroll height for main container
 local function updateScroll()
     local total = 0
     for _, child in ipairs(container:GetChildren()) do
@@ -399,11 +672,13 @@ local function updateScroll()
         end
     end
     container.Size = UDim2.new(1, 0, 0, total)
-    scroll.CanvasSize = UDim2.new(0, 0, 0, total + 20)
+    scroll.CanvasSize = UDim2.new(0, 0, 0, total + 30)
 end
+
 layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateScroll)
-wait(0.1)
+wait(0.2)
 updateScroll()
+updatePlayerList()
 
 -- Draggable
 local dragStart, dragStartPos
@@ -433,9 +708,9 @@ minimizeBtn.MouseButton1Click:Connect(function()
     minimized = not minimized
     if minimized then
         scroll.Visible = false
-        mainFrame:TweenSize(UDim2.new(0, 380, 0, 40), "Out", "Quad", 0.2, true)
+        mainFrame:TweenSize(UDim2.new(0, 420, 0, 40), "Out", "Quad", 0.2, true)
     else
-        mainFrame:TweenSize(UDim2.new(0, 380, 0, 560), "Out", "Quad", 0.2, true)
+        mainFrame:TweenSize(UDim2.new(0, 420, 0, 620), "Out", "Quad", 0.2, true)
         wait(0.2)
         scroll.Visible = true
         updateScroll()
@@ -450,4 +725,4 @@ uis.InputBegan:Connect(function(input, gp)
     end
 end)
 
-print("✅ RMAX HUB + AIR SPEED LOADED - Tekan Insert")
+print("✅ RMAX HUB COMPLETE LOADED - Insert to toggle")
