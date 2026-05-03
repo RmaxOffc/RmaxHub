@@ -273,23 +273,31 @@ local function goToLobby()
 end
 
 local function startAutoCp(delaySec)
-    if autoRunning then return end
-    autoRunning = true
-    autoThread = coroutine.create(function()
-        for i=1, #cpList do
-            if not autoRunning then break end
-            teleportToCp(i)
-            if i < #cpList then
-                local start = tick()
-                while tick() - start < delaySec and autoRunning do
-                    wait(0.1)
-                end
-            end
-        end
-        autoRunning = false
-        autoThread = nil
-    end)
-    coroutine.resume(autoThread)
+if autoRunning then return end
+autoRunning = true
+auto Thread = coroutine.create(function()
+while autoRunning do
+for i = 1, #cpList do
+if not autoRunning then break end
+teleportToCp(i)
+if i < #cpList then
+local start = tick()
+while tick() - start < delaySec and autoRunning do
+wait(0.1)
+end
+else
+setelah CP terakhir, delay juga sebelum balik ke CP1
+if autoRunning then
+local start = tick()
+while tick() - start < delaySec and autoRunning do
+wait(0.1)
+end
+end
+end
+end
+end
+end)
+coroutine.resume(auto Thread)
 end
 
 local function stopAutoCp()
