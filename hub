@@ -1,8 +1,9 @@
 --[[
-    RMAX HUB - FULL FEATURE + ANALOG FLY + STEPPER
-    Fitur: Fly (analog+WASD), Speed, Jump, Infinite Jump, God Mode, Kill Aura, Aimbot, ESP, Tracer, Auto Farm
-    Kontrol numerik pakai tombol +/- step 10
-    Setiap fitur ada emoji logo
+    RMAX HUB - FIXED UI + FITUR LENGKAP
+    - UI PASTI MUNCUL
+    - FLY (WASD + Gamepad analog)
+    - STEPPER +/- step 10
+    - Logo emoji
 --]]
 
 local player = game.Players.LocalPlayer
@@ -10,9 +11,8 @@ local mouse = player:GetMouse()
 local runService = game:GetService("RunService")
 local uis = game:GetService("UserInputService")
 
--- Deteksi gamepad
+-- ========== DETEKSI GAMEPAD ==========
 local hasGamepad = false
-local gamepadConnections = {}
 local function checkGamepad()
     local gamepads = uis:GetGamepads()
     hasGamepad = #gamepads > 0
@@ -39,7 +39,7 @@ local settings = {
     tracercolor = Color3.fromRGB(255, 0, 0),
 }
 
--- ========== FLY SYSTEM (ANALOG + WASD, NO LOCK) ==========
+-- ========== FLY SYSTEM (ANALOG + WASD) ==========
 local bodyVel, bodyGyro, flyConn
 local function stopFly()
     if flyConn then flyConn:Disconnect() flyConn = nil end
@@ -57,44 +57,33 @@ local function startFly()
     bodyVel.P = 1e4
     bodyGyro.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
     bodyGyro.P = 1e4
-    bodyGyro.CFrame = char.HumanoidRootPart.CFrame
     bodyVel.Parent = char.HumanoidRootPart
     bodyGyro.Parent = char.HumanoidRootPart
-    
     flyConn = runService.RenderStepped:Connect(function()
         if not settings.fly or not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
             stopFly()
             return
         end
         local move = Vector3.new()
-        -- WASD
         if uis:IsKeyDown(Enum.KeyCode.W) then move = move + Vector3.new(0, 0, -1) end
         if uis:IsKeyDown(Enum.KeyCode.S) then move = move + Vector3.new(0, 0, 1) end
         if uis:IsKeyDown(Enum.KeyCode.A) then move = move + Vector3.new(-1, 0, 0) end
         if uis:IsKeyDown(Enum.KeyCode.D) then move = move + Vector3.new(1, 0, 0) end
         if uis:IsKeyDown(Enum.KeyCode.Space) then move = move + Vector3.new(0, 1, 0) end
         if uis:IsKeyDown(Enum.KeyCode.LeftControl) then move = move + Vector3.new(0, -1, 0) end
-        
-        -- Gamepad analog (jika ada)
         if hasGamepad then
             local gamepad = uis:GetGamepads()[1]
             if gamepad then
-                local leftStick = gamepad:GetUserGamepadState().LeftStick
-                local rightStick = gamepad:GetUserGamepadState().RightStick
-                -- Left stick untuk horizontal & vertical (maju mundur kiri kanan)
-                move = move + Vector3.new(leftStick.X, 0, -leftStick.Y)
-                -- Right stick Y untuk naik/turun (atau tombol)
-                if rightStick.Y > 0.2 then move = move + Vector3.new(0, rightStick.Y, 0)
-                elseif rightStick.Y < -0.2 then move = move + Vector3.new(0, rightStick.Y, 0)
-                end
+                local state = gamepad:GetUserGamepadState()
+                local leftStick = state.LeftStick
+                local rightStick = state.RightStick
+                move = move + Vector3.new(leftStick.X, rightStick.Y, -leftStick.Y)
             end
         end
-        
         if move.Magnitude > 0 then move = move.Unit else move = Vector3.new() end
         local cam = workspace.CurrentCamera
         local vel = (cam.CFrame.LookVector * move.Z + cam.CFrame.RightVector * move.X + Vector3.new(0, move.Y, 0)) * 100
         bodyVel.Velocity = vel
-        -- Gyro untuk mempertahankan rotasi mengikuti kamera
         bodyGyro.CFrame = CFrame.new(player.Character.HumanoidRootPart.Position, player.Character.HumanoidRootPart.Position + cam.CFrame.LookVector)
     end)
 end
@@ -149,8 +138,7 @@ spawn(function()
             local root = player.Character.HumanoidRootPart
             for _, plr in ipairs(game.Players:GetPlayers()) do
                 if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") and plr.Character:FindFirstChild("Humanoid") then
-                    local dist = (plr.Character.HumanoidRootPart.Position - root.Position).Magnitude
-                    if dist <= settings.killaurarange then
+                    if (plr.Character.HumanoidRootPart.Position - root.Position).Magnitude <= settings.killaurarange then
                         plr.Character.Humanoid.Health = 0
                     end
                 end
@@ -205,10 +193,7 @@ game.Players.PlayerRemoving:Connect(function(plr)
 end)
 
 local function updateESP()
-    if not settings.esp then
-        clearESP()
-        return
-    end
+    if not settings.esp then clearESP() return end
     if not player.Character then return end
     for _, plr in ipairs(game.Players:GetPlayers()) do
         if plr ~= player then
@@ -225,7 +210,7 @@ local function updateESP()
             if not espObjects[plr] then
                 local highlight = Instance.new("Highlight")
                 highlight.FillColor = settings.espcolor
-                highlight.OutlineColor = Color3.new(1, 1, 1)
+                highlight.OutlineColor = Color3.new(1,1,1)
                 highlight.FillTransparency = 0.5
                 highlight.Adornee = plr.Character
                 highlight.Parent = game.CoreGui
@@ -234,7 +219,7 @@ local function updateESP()
                 text.Size = 14
                 text.Center = true
                 text.Outline = true
-                text.Color = Color3.new(1, 1, 1)
+                text.Color = Color3.new(1,1,1)
                 espObjects[plr] = {highlight = highlight, text = text}
             else
                 local data = espObjects[plr]
@@ -242,8 +227,8 @@ local function updateESP()
                 local dist = (plr.Character.HumanoidRootPart.Position - player.Character.HumanoidRootPart.Position).Magnitude
                 if dist <= settings.espdistance then
                     data.highlight.Visible = true
-                    local pos, onScreen = workspace.CurrentCamera:WorldToViewportPoint(plr.Character.HumanoidRootPart.Position + Vector3.new(0, 2, 0))
-                    if onScreen then
+                    local pos, on = workspace.CurrentCamera:WorldToViewportPoint(plr.Character.HumanoidRootPart.Position + Vector3.new(0,2,0))
+                    if on then
                         data.text.Position = Vector2.new(pos.X, pos.Y - 30)
                         data.text.Text = plr.Name .. " | " .. math.floor(dist) .. "m"
                         data.text.Visible = true
@@ -276,17 +261,13 @@ local function clearTracers()
 end
 
 local function updateTracers()
-    if not settings.tracer then
-        clearTracers()
-        return
-    end
-    local camera = workspace.CurrentCamera
-    local viewportSize = camera.ViewportSize
-    local center = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
+    if not settings.tracer then clearTracers() return end
+    local cam = workspace.CurrentCamera
+    local center = cam.ViewportSize / 2
     for _, plr in ipairs(game.Players:GetPlayers()) do
         if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-            local pos, onScreen = camera:WorldToViewportPoint(plr.Character.HumanoidRootPart.Position)
-            if onScreen then
+            local pos, on = cam:WorldToViewportPoint(plr.Character.HumanoidRootPart.Position)
+            if on then
                 if not tracerLines[plr] then
                     local line = Drawing.new("Line")
                     line.Thickness = 2
@@ -299,17 +280,11 @@ local function updateTracers()
                 line.To = Vector2.new(pos.X, pos.Y)
                 line.Visible = true
                 line.Color = settings.tracercolor
-            else
-                if tracerLines[plr] then tracerLines[plr].Visible = false end
+            elseif tracerLines[plr] then
+                tracerLines[plr].Visible = false
             end
-        else
-            if tracerLines[plr] then tracerLines[plr].Visible = false end
-        end
-    end
-    for plr, line in pairs(tracerLines) do
-        if not plr or not plr.Parent or not plr.Character then
-            pcall(function() line:Remove() end)
-            tracerLines[plr] = nil
+        elseif tracerLines[plr] then
+            tracerLines[plr].Visible = false
         end
     end
 end
@@ -345,7 +320,10 @@ local function startFarm()
     end)
 end
 
--- ========== UI DENGAN STEPPER (TOMBOL + -) DAN LOGO ==========
+-- ========== UI DENGAN STEPPER DAN LOGO (PASTI MUNCUL) ==========
+-- Hapus ScreenGui lama jika ada
+pcall(function() game.CoreGui:FindFirstChild("RmaxHub"):Destroy() end)
+
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "RmaxHub"
 screenGui.Parent = game.CoreGui
@@ -394,13 +372,12 @@ minimizeBtn.TextColor3 = Color3.new(1,1,1)
 minimizeBtn.TextSize = 24
 minimizeBtn.Parent = titleBar
 
--- ScrollFrame
+-- ScrollingFrame
 local scrollFrame = Instance.new("ScrollingFrame")
 scrollFrame.Size = UDim2.new(1, 0, 1, -45)
 scrollFrame.Position = UDim2.new(0, 0, 0, 45)
 scrollFrame.BackgroundTransparency = 1
 scrollFrame.BorderSizePixel = 0
-scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 scrollFrame.ScrollBarThickness = 5
 scrollFrame.Parent = mainFrame
 
@@ -454,10 +431,10 @@ local function addToggle(icon, text, default, callback)
     return frame
 end
 
--- Helper: Number Stepper (tambah/kurang step 10)
+-- Helper: Stepper (tombol + / -)
 local function addStepper(icon, text, minv, maxv, default, step, callback)
     local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, -20, 0, 50)
+    frame.Size = UDim2.new(1, -20, 0, 55)
     frame.BackgroundTransparency = 1
     frame.Parent = contentList
     
@@ -468,7 +445,7 @@ local function addStepper(icon, text, minv, maxv, default, step, callback)
     label.BackgroundTransparency = 1
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.Font = Enum.Font.Gotham
-    label.TextSize = 14
+    label.TextSize = 15
     label.Parent = frame
     
     local valueLabel = Instance.new("TextLabel")
@@ -482,8 +459,8 @@ local function addStepper(icon, text, minv, maxv, default, step, callback)
     valueLabel.Parent = frame
     
     local decBtn = Instance.new("TextButton")
-    decBtn.Size = UDim2.new(0, 40, 0, 32)
-    decBtn.Position = UDim2.new(0.75, 0, 0, 9)
+    decBtn.Size = UDim2.new(0, 40, 0, 35)
+    decBtn.Position = UDim2.new(0.75, 0, 0, 10)
     decBtn.Text = "-"
     decBtn.TextColor3 = Color3.new(1,1,1)
     decBtn.BackgroundColor3 = Color3.fromRGB(60,60,80)
@@ -495,8 +472,8 @@ local function addStepper(icon, text, minv, maxv, default, step, callback)
     decBtn.Parent = frame
     
     local incBtn = Instance.new("TextButton")
-    incBtn.Size = UDim2.new(0, 40, 0, 32)
-    incBtn.Position = UDim2.new(0.85, 0, 0, 9)
+    incBtn.Size = UDim2.new(0, 40, 0, 35)
+    incBtn.Position = UDim2.new(0.85, 0, 0, 10)
     incBtn.Text = "+"
     incBtn.TextColor3 = Color3.new(1,1,1)
     incBtn.BackgroundColor3 = Color3.fromRGB(60,60,80)
@@ -516,11 +493,10 @@ local function addStepper(icon, text, minv, maxv, default, step, callback)
     
     decBtn.MouseButton1Click:Connect(function() updateValue(val - step) end)
     incBtn.MouseButton1Click:Connect(function() updateValue(val + step) end)
-    
     return frame
 end
 
--- ========== BUILD UI ==========
+-- ========== MEMBUAT SEMUA KONTROL UI ==========
 addToggle("🪶", "Fly (WASD + Gamepad)", settings.fly, function(v) settings.fly = v; if v then startFly() else stopFly() end end)
 addStepper("🏃", "Walk Speed", 16, 500, settings.walkspeed, 10, function(v) settings.walkspeed = v; updateChar() end)
 addStepper("🦘", "Jump Power", 30, 200, settings.jumppower, 10, function(v) settings.jumppower = v; updateChar() end)
@@ -534,7 +510,7 @@ addStepper("📡", "ESP Distance", 100, 1000, settings.espdistance, 50, function
 
 -- Color picker ESP
 local espColorFrame = Instance.new("Frame")
-espColorFrame.Size = UDim2.new(1, -20, 0, 45)
+espColorFrame.Size = UDim2.new(1, -20, 0, 50)
 espColorFrame.BackgroundTransparency = 1
 espColorFrame.Parent = contentList
 local espColorLabel = Instance.new("TextLabel")
@@ -544,11 +520,11 @@ espColorLabel.TextColor3 = Color3.new(1,1,1)
 espColorLabel.BackgroundTransparency = 1
 espColorLabel.TextXAlignment = Enum.TextXAlignment.Left
 espColorLabel.Font = Enum.Font.Gotham
-espColorLabel.TextSize = 14
+espColorLabel.TextSize = 15
 espColorLabel.Parent = espColorFrame
 local espColorBtn = Instance.new("TextButton")
-espColorBtn.Size = UDim2.new(0, 90, 0, 32)
-espColorBtn.Position = UDim2.new(1, -100, 0, 6)
+espColorBtn.Size = UDim2.new(0, 90, 0, 35)
+espColorBtn.Position = UDim2.new(1, -100, 0, 7)
 espColorBtn.BackgroundColor3 = settings.espcolor
 espColorBtn.Text = "Change"
 espColorBtn.TextColor3 = Color3.new(0,0,0)
@@ -569,7 +545,7 @@ end)
 
 addToggle("🧭", "Tracer (Direction Line)", settings.tracer, function(v) settings.tracer = v; if not v then clearTracers() end end)
 local tracerColorFrame = Instance.new("Frame")
-tracerColorFrame.Size = UDim2.new(1, -20, 0, 45)
+tracerColorFrame.Size = UDim2.new(1, -20, 0, 50)
 tracerColorFrame.BackgroundTransparency = 1
 tracerColorFrame.Parent = contentList
 local tracerColorLabel = Instance.new("TextLabel")
@@ -579,11 +555,11 @@ tracerColorLabel.TextColor3 = Color3.new(1,1,1)
 tracerColorLabel.BackgroundTransparency = 1
 tracerColorLabel.TextXAlignment = Enum.TextXAlignment.Left
 tracerColorLabel.Font = Enum.Font.Gotham
-tracerColorLabel.TextSize = 14
+tracerColorLabel.TextSize = 15
 tracerColorLabel.Parent = tracerColorFrame
 local tracerColorBtn = Instance.new("TextButton")
-tracerColorBtn.Size = UDim2.new(0, 90, 0, 32)
-tracerColorBtn.Position = UDim2.new(1, -100, 0, 6)
+tracerColorBtn.Size = UDim2.new(0, 90, 0, 35)
+tracerColorBtn.Position = UDim2.new(1, -100, 0, 7)
 tracerColorBtn.BackgroundColor3 = settings.tracercolor
 tracerColorBtn.Text = "Change"
 tracerColorBtn.TextColor3 = Color3.new(0,0,0)
@@ -604,7 +580,7 @@ end)
 
 addToggle("🤖", "Auto Farm (Coin/Gem)", settings.autofarm, function(v) settings.autofarm = v; if v then startFarm() else stopFarm() end end)
 
--- Update canvas size
+-- Update canvas size setelah layout selesai
 local function updateCanvasSize()
     local totalHeight = 0
     for _, child in ipairs(contentList:GetChildren()) do
@@ -614,9 +590,10 @@ local function updateCanvasSize()
     end
     contentList.Size = UDim2.new(1, 0, 0, totalHeight)
     scrollFrame.CanvasSize = UDim2.new(0, 0, 0, totalHeight + 30)
+    scrollFrame.CanvasPosition = Vector2.new(0, 0)
 end
 layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateCanvasSize)
-task.wait(0.1)
+task.wait(0.2)
 updateCanvasSize()
 
 -- Draggable
@@ -650,8 +627,9 @@ minimizeBtn.MouseButton1Click:Connect(function()
         mainFrame:TweenSize(UDim2.new(0, 450, 0, 45), "Out", "Quad", 0.2, true)
     else
         mainFrame:TweenSize(UDim2.new(0, 450, 0, 600), "Out", "Quad", 0.2, true)
-        wait(0.2)
+        task.wait(0.2)
         scrollFrame.Visible = true
+        updateCanvasSize()
     end
 end)
 
@@ -663,4 +641,4 @@ uis.InputBegan:Connect(function(input, gp)
     end
 end)
 
-print("RMAX HUB ULTIMATE LOADED - Insert to toggle | Fly support gamepad analog | Stepper +/-")
+print("RMAX HUB SUCCESSFULLY LOADED - Insert to toggle")
