@@ -1,0 +1,200 @@
+-- Script ini taruh di StarterGui atau ScreenGui (LocalScript)
+
+local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+
+-- Variabel
+local savedCoordinates = nil
+local teleportEnabled = false
+
+-- Fungsi mengambil posisi sekarang
+local function getCurrentPosition()
+    local pos = humanoidRootPart.Position
+    return {X = math.floor(pos.X * 10) / 10, Y = math.floor(pos.Y * 10) / 10, Z = math.floor(pos.Z * 10) / 10}
+end
+
+-- Fungsi teleport ke koordinat tertentu
+local function teleportTo(coords)
+    if coords and teleportEnabled then
+        local newPos = Vector3.new(coords.X, coords.Y, coords.Z)
+        humanoidRootPart.CFrame = CFrame.new(newPos)
+    elseif not teleportEnabled then
+        warn("Teleport dimatikan. Nyalakan toggle dulu.")
+    end
+end
+
+-- Buat ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ModernUtilityPanel"
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+-- Frame Utama (hitam transparan + border biru)
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 320, 0, 280)
+mainFrame.Position = UDim2.new(0.5, -160, 0.5, -140)
+mainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
+mainFrame.BackgroundTransparency = 0.1
+mainFrame.BorderColor3 = Color3.fromRGB(0, 120, 255)
+mainFrame.BorderSizePixel = 2
+mainFrame.ClipsDescendants = true
+mainFrame.Parent = screenGui
+
+-- Efek glassmorphism (opsional)
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 12)
+corner.Parent = mainFrame
+
+-- Drop shadow
+local shadow = Instance.new("UIGradient")
+shadow.Rotation = 45
+shadow.Offset = Vector2.new(0.5, 0.5)
+shadow.Parent = mainFrame
+
+-- Judul
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 40)
+title.Position = UDim2.new(0, 0, 0, 0)
+title.BackgroundColor3 = Color3.fromRGB(0, 80, 160)
+title.BackgroundTransparency = 0.3
+title.Text = "✦ UTILITY PANEL ✦"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.TextScaled = true
+title.Font = Enum.Font.GothamBold
+title.Parent = mainFrame
+
+-- Tombol Copy Koordinat
+local copyButton = Instance.new("TextButton")
+copyButton.Size = UDim2.new(0.8, 0, 0, 45)
+copyButton.Position = UDim2.new(0.1, 0, 0.2, 0)
+copyButton.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
+copyButton.Text = "📍 Copy Koordinat Sekarang"
+copyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+copyButton.TextScaled = true
+copyButton.Font = Enum.Font.Gotham
+copyButton.Parent = mainFrame
+
+local copyCorner = Instance.new("UICorner")
+copyCorner.CornerRadius = UDim.new(0, 8)
+copyCorner.Parent = copyButton
+
+-- Label koordinat tersimpan
+local coordLabel = Instance.new("TextLabel")
+coordLabel.Size = UDim2.new(0.8, 0, 0, 30)
+coordLabel.Position = UDim2.new(0.1, 0, 0.38, 0)
+coordLabel.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+coordLabel.Text = "Belum ada koordinat disalin"
+coordLabel.TextColor3 = Color3.fromRGB(180, 180, 255)
+coordLabel.TextScaled = true
+coordLabel.Font = Enum.Font.Gotham
+coordLabel.Parent = mainFrame
+
+local coordCorner = Instance.new("UICorner")
+coordCorner.CornerRadius = UDim.new(0, 6)
+coordCorner.Parent = coordLabel
+
+-- Toggle ON/OFF untuk Teleport
+local toggleFrame = Instance.new("Frame")
+toggleFrame.Size = UDim2.new(0.8, 0, 0, 40)
+toggleFrame.Position = UDim2.new(0.1, 0, 0.55, 0)
+toggleFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+toggleFrame.Parent = mainFrame
+
+local toggleCorner = Instance.new("UICorner")
+toggleCorner.CornerRadius = UDim.new(0, 8)
+toggleCorner.Parent = toggleFrame
+
+local toggleLabel = Instance.new("TextLabel")
+toggleLabel.Size = UDim2.new(0.5, 0, 1, 0)
+toggleLabel.Position = UDim2.new(0, 5, 0, 0)
+toggleLabel.BackgroundTransparency = 1
+toggleLabel.Text = "🔘 Teleport Aktif?"
+toggleLabel.TextColor3 = Color3.fromRGB(220, 220, 255)
+toggleLabel.TextXAlignment = Enum.TextXAlignment.Left
+toggleLabel.Font = Enum.Font.Gotham
+toggleLabel.TextScaled = true
+toggleLabel.Parent = toggleFrame
+
+local toggleButton = Instance.new("TextButton")
+toggleButton.Size = UDim2.new(0, 60, 0, 30)
+toggleButton.Position = UDim2.new(0.7, 0, 0.125, 0)
+toggleButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+toggleButton.Text = "OFF"
+toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleButton.TextScaled = true
+toggleButton.Font = Enum.Font.GothamBold
+toggleButton.Parent = toggleFrame
+
+local toggleCornerBtn = Instance.new("UICorner")
+toggleCornerBtn.CornerRadius = UDim.new(0, 12)
+toggleCornerBtn.Parent = toggleButton
+
+-- Tombol Teleport
+local teleportButton = Instance.new("TextButton")
+teleportButton.Size = UDim2.new(0.8, 0, 0, 45)
+teleportButton.Position = UDim2.new(0.1, 0, 0.75, 0)
+teleportButton.BackgroundColor3 = Color3.fromRGB(0, 80, 120)
+teleportButton.Text = "🚀 Teleport ke Koordinat"
+teleportButton.TextColor3 = Color3.fromRGB(200, 200, 255)
+teleportButton.TextScaled = true
+teleportButton.Font = Enum.Font.Gotham
+teleportButton.Parent = mainFrame
+
+local teleCorner = Instance.new("UICorner")
+teleCorner.CornerRadius = UDim.new(0, 8)
+teleCorner.Parent = teleportButton
+
+-- Fungsi update warna toggle
+local function updateToggleUI()
+    if teleportEnabled then
+        toggleButton.BackgroundColor3 = Color3.fromRGB(0, 150, 100)
+        toggleButton.Text = "ON"
+        teleportButton.BackgroundColor3 = Color3.fromRGB(0, 120, 200)
+        teleportButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    else
+        toggleButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+        toggleButton.Text = "OFF"
+        teleportButton.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+        teleportButton.TextColor3 = Color3.fromRGB(150, 150, 180)
+    end
+end
+
+-- Event Copy
+copyButton.MouseButton1Click:Connect(function()
+    local pos = getCurrentPosition()
+    savedCoordinates = pos
+    coordLabel.Text = string.format("📌 Disalin: (%.1f, %.1f, %.1f)", pos.X, pos.Y, pos.Z)
+    -- Efek feedback
+    copyButton.BackgroundColor3 = Color3.fromRGB(0, 180, 100)
+    task.wait(0.15)
+    copyButton.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
+end)
+
+-- Event Toggle
+toggleButton.MouseButton1Click:Connect(function()
+    teleportEnabled = not teleportEnabled
+    updateToggleUI()
+end)
+
+-- Event Teleport
+teleportButton.MouseButton1Click:Connect(function()
+    if savedCoordinates then
+        teleportTo(savedCoordinates)
+    else
+        coordLabel.Text = "⚠️ Belum ada koordinat! Copy dulu."
+        task.wait(1)
+        if savedCoordinates then
+            coordLabel.Text = string.format("📌 Disalin: (%.1f, %.1f, %.1f)", savedCoordinates.X, savedCoordinates.Y, savedCoordinates.Z)
+        else
+            coordLabel.Text = "Belum ada koordinat disalin"
+        end
+    end
+end)
+
+-- Update karakter jika respawn
+player.CharacterAdded:Connect(function(newChar)
+    character = newChar
+    humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+end)
+
+updateToggleUI()
